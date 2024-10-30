@@ -4,3 +4,6 @@ cursor.txt
 *.log
 labels.db*
 bun.lockb
+/labels.ldb
+/danbooru-data
+/msgpackr-shared-structures.mp
