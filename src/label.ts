@@ -4,8 +4,68 @@ import { LabelerServer } from '@skyware/labeler';
 import { DID, SIGNING_KEY } from './config.js';
 // import { DELETE, LABELS, LABEL_LIMIT } from './constants.js';
 import logger from './logger.js';
+import { bot } from './bot.js';
+import { Post } from '@skyware/bot';
+import { AppBskyFeedPost } from '@atcute/client/lexicons';
+import { matchers } from './taggers/index.js';
+import { table } from './lmdb.js';
+import { Match } from './taggers/matcher.js';
+import { getLabelIdForTag } from './labels/index.js';
 
 export const labelerServer = new LabelerServer({ did: DID, signingKey: SIGNING_KEY });
+
+const matchesByUrl = table<string, Match>('matches', 'ordered-binary');
+
+export async function labelPost(post: Post | (AppBskyFeedPost.Record & { uri: string }) | string) {
+    const uri = typeof post === 'string' ? post : post.uri;
+
+    if (typeof post === 'string')
+        post = await bot.getPost(post);
+
+    const images: string[] = [];
+
+    if (post.embed) {
+        if ('isImages' in post.embed) {
+            if (post.embed.isImages()) {
+                for (const image of post.embed.images) {
+                    if (image.url) images.push(image.url);
+                }
+            }
+        } else if ('images' in post.embed) {
+            for (const image of post.embed.images) {
+                images.push(image.image.ref.$link);
+            }
+        }
+    }
+
+    const labels = new Set<number>();
+
+    for (const imageUrl of images) {
+        let match = matchesByUrl.get(imageUrl);
+        if (!match) {
+            for (const matcher of matchers) {
+                const matchCandidate = await matcher.getMatch(imageUrl);
+                if (matchCandidate) {
+                    if ('error' in matchCandidate) {
+                        logger.error(`matcher ${matcher.constructor.name} error: ${matchCandidate.error}`);
+                    } else {
+                        matchesByUrl.put(imageUrl, matchCandidate);
+                        match = matchCandidate;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (match) {
+            for (const tagId of match.tags) {
+                labels.add(tagId);
+            }
+        }
+    }
+
+    await addLabels(uri, [...labels].map(getLabelIdForTag).filter(e => e !== undefined));
+}
 
 // export const label = async (subject: string | AppBskyActorDefs.ProfileView, rkey: string) => {
 //     const did = AppBskyActorDefs.isProfileView(subject) ? subject.did : subject;
@@ -59,25 +119,14 @@ export const labelerServer = new LabelerServer({ did: DID, signingKey: SIGNING_K
 //         }
 //     }
 // }
-//
-// async function addOrUpdateLabel(did: string, rkey: string, labels: Set<string>) {
-//     const newLabel = LABELS.find((label) => label.rkey === rkey);
-//     logger.info(`New label: ${newLabel?.identifier}`);
-//
-//     if (labels.size >= LABEL_LIMIT) {
-//         try {
-//             await labelerServer.createLabels({ uri: did }, { negate: Array.from(labels) });
-//             logger.info(`Successfully negated existing labels: ${Array.from(labels).join(', ')}`);
-//         } catch (error) {
-//             logger.error(`Error negating existing labels: ${error}`);
-//         }
-//     }
-//
-//     try {
-//         await labelerServer.createLabel({ uri: did, val: newLabel!.identifier });
-//         logger.info(`Successfully labeled ${did} with ${newLabel?.identifier}`);
-//     } catch (error) {
-//         logger.error(`Error adding new label: ${error}`);
-//     }
-// }
-//
+
+async function addLabels(uri: string, identifiers: string[]) {
+    logger.info(`New labels: ${identifiers.join(', ')}`);
+
+    try {
+        await labelerServer.createLabels({ uri }, { create: identifiers });
+        logger.info(`Successfully labeled ${uri} with ${identifiers.join(', ')}`);
+    } catch (error) {
+        logger.error(`Error adding new label: ${error}`);
+    }
+}
