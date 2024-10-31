@@ -1,3 +1,12 @@
-[submodule "src/taggers/iqdb-client"]
-	path = src/taggers/iqdb-client
+[submodule "extern/DeepDanbooru"]
+	path = extern/DeepDanbooru
+	url = https://github.com/KichangKim/DeepDanbooru
+[submodule "extern/TorchDeepDanbooru"]
+	path = extern/TorchDeepDanbooru
+	url = https://github.com/AUTOMATIC1111/TorchDeepDanbooru
+[submodule "src/labeler"]
+	path = src/labeler
+	url = https://github.com/deliciously-default/labeler
+[submodule "src/taggers/iqdb/iqdb-client"]
+	path = src/taggers/iqdb/iqdb-client
 	url = https://github.com/KotoriK/iqdb-client
