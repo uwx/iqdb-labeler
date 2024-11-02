@@ -1,15 +1,30 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { rename } from 'fs/promises';
 import { Database, GetOptions, Key, open, Transaction, TransactionFlags } from 'lmdb';
 
 const sharedStructuresKey = Symbol.for('structures');
 
-export const db = open('database', {
-    maxDbs: 25,
-    compression: true,
-    encoding: 'msgpack',
-    sharedStructuresKey,
-    pageSize: 8192, // By default, the maximum key size is 1978 bytes. If you explicitly set the pageSize to 8192 or higher, the maximum key size will be 4026, but this is the largest key size supported.
-});
+function openDb() {
+    return open('database', {
+        maxDbs: 25,
+        compression: true,
+        encoding: 'msgpack',
+        sharedStructuresKey,
+        pageSize: 8192, // By default, the maximum key size is 1978 bytes. If you explicitly set the pageSize to 8192 or higher, the maximum key size will be 4026, but this is the largest key size supported.
+    });
+}
+
+export let db = openDb();
+
+export async function compactDb() {
+    const adb = db;
+    db = undefined!; // prevent dangerous ops
+    await adb.backup('database-compact', true);
+    adb.close();
+    await rename('./database', './database.001');
+    await rename('./database-compact', './database');
+    db = openDb();
+}
 
 // string values
 export function table(

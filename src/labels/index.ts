@@ -2,7 +2,8 @@ import { createReadStream } from 'node:fs';
 import readline from 'node:readline/promises';
 import { BQTag, BQTagAlias, BQTagImplication, BQWikiPage } from './danbooru-query.js';
 import { type ComAtprotoLabelDefs } from '@atproto/api';
-import { db, table } from '../lmdb.js';
+import { compactDb, db, table } from '../lmdb.js';
+import logger from '../logger.js';
 
 export const enum TagCategory {
     General = 0,
@@ -114,6 +115,15 @@ export const wikiPages = table<number, WikiPage>('wiki-pages', 'uint32');
 export const wikiPagesByTitle = table<string, number>('wiki-page-by-name');
 
 export async function injectDanbooruTags() {
+    logger.info('clearing tags db');
+    await tags.clearAsync();
+    await tagsByName.clearAsync();
+    await tagsByNameOrAlias.clearAsync();
+    await tagAliases.clearAsync();
+    await wikiPages.clearAsync();
+    await wikiPagesByTitle.clearAsync();
+
+    logger.info('injecting tags');
     await db.transaction(async () => {
         for await (const tag of readJsonLines<BQTag>('./danbooru-data/tags.jsonl')) {
             // console.log('tag', tag.id);
@@ -136,18 +146,19 @@ export async function injectDanbooruTags() {
                 implies: [],
             });
 
-            if (tag.name && tag.name.length <= 4026) {
+            if (tag.name && tag.name.length < 500) {
                 try {
                     tagsByName.put(tag.name, tag.id);
                     tagsByNameOrAlias.put(tag.name, tag.id);
                 } catch (err) {
-                    console.error(tag);
+                    logger.error(`errored: ${JSON.stringify(tag)}`);
                     throw err;
                 }
             }
         }
     });
 
+    logger.info('injecting tag_aliases');
     await db.transaction(async () => {
         for await (const tagAlias of readJsonLines<BQTagAlias>('./danbooru-data/tag_aliases.jsonl')) {
             // console.log('tagAlias', tagAlias.id);
@@ -170,22 +181,26 @@ export async function injectDanbooruTags() {
             });
 
             if (tagAlias.consequent_name && tagAlias.antecedent_name && tagAlias.status == 'active') {
-                const tag = tags.get(tagsByName.get(tagAlias.consequent_name)!)!;
-                if (!tag.aliases.some(e => e.id == tagAlias.id)) {
-                    tag.aliases.push({
-                        id: tagAlias.id,
-                        antecedentName: tagAlias.antecedent_name,
-                    })
-                    tags.put(tag.id, tag);
-                }
+                const tag = tags.get(tagsByName.get(tagAlias.consequent_name)!);
 
-                tagsByNameOrAlias.put(tagAlias.antecedent_name, tag.id);
+                if (tag) {
+                    if (!tag.aliases.some(e => e.id == tagAlias.id)) {
+                        tag.aliases.push({
+                            id: tagAlias.id,
+                            antecedentName: tagAlias.antecedent_name,
+                        })
+                        tags.put(tag.id, tag);
+                    }
+
+                    tagsByNameOrAlias.put(tagAlias.antecedent_name, tag.id);
+                }
             }
         }
     });
 
+    logger.info('injecting tag_implications');
     await db.transaction(async () => {
-        for await (const tagImplication of readJsonLines<BQTagImplication>('./danbooru-data/tag_aliases.jsonl')) {
+        for await (const tagImplication of readJsonLines<BQTagImplication>('./danbooru-data/tag_implications.jsonl')) {
             // console.log('tagImplication', tagImplication.id);
             if (tagImplication.status == 'active') {
                 if (tagImplication.antecedent_name && tagImplication.consequent_name) {
@@ -214,6 +229,7 @@ export async function injectDanbooruTags() {
         }
     });
 
+    logger.info('injecting wiki_pages');
     await db.transaction(async () => {
         for await (const wikiPage of readJsonLines<BQWikiPage>('./danbooru-data/wiki_pages.jsonl')) {
             // console.log('wikiPage', wikiPage.id);
@@ -247,6 +263,11 @@ export async function injectDanbooruTags() {
             }
         }
     });
+
+    logger.info('compacting db');
+    console.time('compact db');
+    await compactDb();
+    console.timeEnd('compact db');
 }
 
 export async function *getLabelValueDefinitions() {
@@ -277,8 +298,9 @@ export async function *getLabelValueDefinitions() {
             locales: [
                 {
                     lang: 'en',
-                    name: `${tagCategoryNames[tag.category ?? TagCategory.General]}: ${tag.name?.replace(/_/g, ' ') ?? wikiPage?.title?.replace(/_/g, ' ') ?? String(tag.id)}`,
-                    description: removeDtext(extractFirstSentence(wikiPage?.body ?? `Images with the ${tag.name ?? wikiPage?.title ?? tag.id} tag on Danbooru.`))
+                    name: (tag.category !== undefined && tag.category !== TagCategory.General ? `${tagCategoryNames[tag.category]}: ` : '') +
+                        `${tag.name?.replace(/_/g, ' ') ?? wikiPage?.title?.replace(/_/g, ' ') ?? String(tag.id)}`,
+                    description: cleanup(wikiPage?.body ?? `Images with the ${tag.name ?? wikiPage?.title ?? tag.id} tag on Danbooru.`)
                         // + (wikiPage?.otherNames?.length ? `\n\nOther names: ${wikiPage.otherNames.join(', ')}` : '')
                 },
             ]
@@ -301,7 +323,7 @@ function indexOfAny(str: string, ...options: string[]) {
     return idxs.length == 0 ? -1 : Math.min(...idxs);
 }
 
-function extractFirstSentence(str: string): string {
+function cleanup(str: string): string {
     function stripToFirstHeading(str: string): string {
         const idx = indexOfAny(str, 'h4. ', 'h5. ', 'h6. ');
         if (idx == -1) return str;
@@ -315,6 +337,7 @@ function extractFirstSentence(str: string): string {
     }
 
     str = stripToFirstHeading(str);
+    str = removeDtext(str);
     str = stripToParagraphSeparator(str);
 
     return str.trim();

@@ -1,0 +1,135 @@
+import { Jetstream } from '@skyware/jetstream';
+import fs from 'node:fs';
+import ws from 'ws';
+
+import { CURSOR_UPDATE_INTERVAL, FIREHOSE_URL } from './config.js';
+import { labelPost } from './label.js';
+import logger from './logger.js';
+
+import { set, table } from './lmdb.js';
+import { bot } from './bot.js';
+import { access, readFile } from 'node:fs/promises';
+import { getDbConfigItem, setDbConfigItem } from './utils/db-config.js';
+
+let cursor = 0;
+let cursorUpdateInterval: NodeJS.Timeout;
+
+function epochUsToDateTime(cursor: number): string {
+    return new Date(cursor / 1000).toISOString();
+}
+
+logger.info('Trying to read cursor from database...');
+cursor = getDbConfigItem('jetstreamCursor');
+if (!cursor) {
+    logger.info('Cursor not found in database. trying to read from cursor.txt...');
+    if (await access('cursor.txt').then(() => true).catch(() => false)) {
+        cursor = Number(await readFile('cursor.txt', 'utf-8'))
+        logger.info(`Cursor found: ${cursor} (${epochUsToDateTime(cursor)})`);
+    } else {
+        logger.info(`Cursor not found in database or cursor.txt, setting cursor to: ${cursor} (${epochUsToDateTime(cursor)})`);
+        cursor = Math.floor(Date.now() * 1000);
+    }
+    await setDbConfigItem('jetstreamCursor', cursor);
+} else {
+    logger.info(`Cursor found: ${cursor} (${epochUsToDateTime(cursor)})`);
+}
+
+const jetstream = new Jetstream({
+    wantedCollections: [
+        'app.bsky.feed.post',
+        'app.bsky.graph.follow',
+        'app.bsky.feed.like',
+    ],
+    endpoint: FIREHOSE_URL,
+    cursor: cursor,
+    ws: ws
+});
+
+jetstream.on('open', () => {
+    logger.info(`Connected to Jetstream at ${FIREHOSE_URL} with cursor ${jetstream.cursor} (${epochUsToDateTime(jetstream.cursor!)})`);
+    cursorUpdateInterval = setInterval(() => {
+        if (jetstream.cursor) {
+            logger.info(`Cursor updated to: ${jetstream.cursor} (${epochUsToDateTime(jetstream.cursor)})`);
+            setDbConfigItem('jetstreamCursor', jetstream.cursor);
+        }
+    }, CURSOR_UPDATE_INTERVAL);
+});
+
+jetstream.on('close', () => {
+    clearInterval(cursorUpdateInterval);
+    logger.info('Jetstream connection closed.');
+});
+
+jetstream.on('error', (error) => {
+    logger.error(`Jetstream error: ${error.message}`);
+});
+
+const followers = set<string>('followers');
+const followRecords = table<string, string>('follow-records', 'ordered-binary', 'string');
+jetstream.onCreate('app.bsky.graph.follow', ({ commit: { record, rkey }, did }) => {
+    // const uri = `at://${did}/app.bsky.graph.follow/${rkey}`;
+    if (record.subject === bot.profile.did) {
+        logger.debug(`Followed by ${did}`);
+        followers.add(did);
+        followRecords.put(rkey, did);
+
+        // this.emit("follow", { user: await bot.getProfile(did), uri });
+    }
+});
+
+// is this the only way to find out if the follow record is for myself?
+jetstream.onDelete('app.bsky.graph.follow', ({ commit: { rkey }, did }) => {
+    if (followRecords.doesExist(rkey)) {
+        logger.debug(`Unfollowed by ${did}`);
+        followers.delete(did);
+        followRecords.remove(rkey);
+    }
+});
+
+jetstream.onCreate('app.bsky.feed.like', async ({ commit: { record }, did }) => {
+    if (followers.has(did)) {
+        labelPost(record.subject.uri).catch((error: unknown) => {
+            logger.error(`Unexpected error labeling ${record.subject.uri}: ${error}`);
+            console.error(error);
+        });
+
+        // event.commit.record.subject.uri
+        // label(event.did, event.commit.record.subject.uri.split('/').pop()!).catch((error: unknown) => {
+        //     logger.error(`Unexpected error labeling ${event.did}: ${error}`);
+        // });
+    }
+});
+
+jetstream.onCreate('app.bsky.feed.post', async (event) => {
+    const { commit, did } = event;
+    const { record, cid, rkey } = commit;
+
+    const uri = `at://${did}/app.bsky.feed.post/${rkey}`;
+
+    if (followers.has(did)) {
+        labelPost(await bot.getPost(uri)).catch((error: unknown) => {
+            logger.error(`Unexpected error labeling ${uri}: ${error}`);
+        });
+
+        // event.commit.record.subject.uri
+        // label(event.did, event.commit.record.subject.uri.split('/').pop()!).catch((error: unknown) => {
+        //     logger.error(`Unexpected error labeling ${event.did}: ${error}`);
+        // });
+    }
+});
+
+jetstream.start();
+
+function shutdown() {
+    try {
+        logger.info('Shutting down gracefully...');
+        fs.writeFileSync('cursor.txt', jetstream.cursor!.toString(), 'utf8');
+        jetstream.close();
+    } catch (error) {
+        logger.error(`Error shutting down gracefully: ${error}`);
+        process.exit(1);
+    }
+}
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
