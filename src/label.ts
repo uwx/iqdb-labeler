@@ -84,7 +84,7 @@ export async function labelPost(post: Post | (AppBskyFeedPost.Record & { uri: st
     if (labels.size > 0) {
         await addLabels(post.uri, [...labels].map(getLabelIdForTag)
             .filter(e => e !== undefined)
-            .filter(e => e in labelDefinitions));
+            .filter(e => e in labelDefinitions), post.cid);
     } else {
         logger.info('No matches');
     }
@@ -143,20 +143,14 @@ export async function labelPost(post: Post | (AppBskyFeedPost.Record & { uri: st
 //     }
 // }
 
-async function addLabels(uri: string, identifiers: string[], cid?: string) {
+async function addLabels(uri: string, identifiers: string[], cid: string) {
     logger.info(`New labels: ${identifiers.join(', ')}`);
 
     try {
-        const createdAt = new Date().toISOString();
-
-        for (const identifier of identifiers) {
-            await labelerServer.createLabel({
-                uri,
-                val: identifier,
-                cid,
-                cts: createdAt
-            })
-        }
+        await bot.label({
+            reference: { uri, cid },
+            labels: identifiers
+        });
 
         logger.info(`Successfully labeled ${uri} with ${identifiers.map(e => labelDefinitions[e].locales[0].name).join(', ')}`);
     } catch (error) {
