@@ -8,7 +8,7 @@ import { bot } from './bot.js';
 import { Post } from '@skyware/bot';
 import { AppBskyFeedPost } from '@atcute/client/lexicons';
 import { matchers } from './taggers/index.js';
-import { table } from './lmdb.js';
+import { db } from './lmdb.js';
 import { Match } from './taggers/matcher.js';
 import { getLabelIdForTag } from './labels/index.js';
 import { getLabelerLabelDefinitions } from '@skyware/labeler/scripts';
@@ -17,7 +17,7 @@ import { getLabelerLabelDefinitions } from '@skyware/labeler/scripts';
 //    console.log(`onRequest`, request);
 //})
 
-const matchesByUrl = table<string, Match>('matches', 'ordered-binary');
+const matchesByUrl = db.table<string, Match>('matches', 'ordered-binary');
 
 const labelDefinitions = Object.fromEntries((await getLabelerLabelDefinitions({
     identifier: BSKY_IDENTIFIER,

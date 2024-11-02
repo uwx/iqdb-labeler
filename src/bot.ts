@@ -1,10 +1,10 @@
 import '@atcute/bluesky/lexicons';
 import { Bot } from "@skyware/bot";
 import { BSKY_IDENTIFIER, BSKY_PASSWORD } from './config.js';
-import { table } from './lmdb.js';
+import { db } from './lmdb.js';
 import { AtpSessionData, CredentialManager, XRPCError } from '@atcute/client';
 
-const sessions = table<number, AtpSessionData>('sessions', 'ordered-binary', 'msgpack');
+const sessions = db.table<number, AtpSessionData>('sessions', 'ordered-binary', 'msgpack');
 
 export const bot = new Bot({
     emitEvents: false,

@@ -1,48 +1,29 @@
-import { open } from "lmdb";
 import { encodeToBitArray, decodeFromBitArray, LuminosityLevel } from "./puzzle/index.js";
 import { generateSignature as phashGenerateSignature } from "./phash/index.js";
 import { loadAndGenerateSignature as puzzleGenerateSignature } from "./edge/puzzle-nativeaot.js";
 import sharp from 'sharp';
 import { PartialPost } from "./scrapers/types.js";
 import { readFile } from "node:fs/promises";
+import { LmdbWrapper } from "../lmdb-wrapper.js";
 
-const db = open('reverse-image-database', {
-    maxDbs: 25,
+const db = new LmdbWrapper('reverse-image-database', {
     keyEncoding: 'binary',
     encoding: 'binary',
 });
 
-export const cursors = db.openDB<number, string>('cursors', {
-    keyEncoding: 'ordered-binary',
-    encoding: 'ordered-binary',
-    sharedStructuresKey: Symbol.for('structures'),
-});
+export const cursors = db.table<string, number>('cursors', 'ordered-binary', 'ordered-binary');
 
-export const posts = db.openDB<PartialPost, [id: number, service: string]>('TEMP-POSTS', {
-    keyEncoding: 'ordered-binary',
-    encoding: 'msgpack',
-    sharedStructuresKey: Symbol.for('structures'),
-});
+export const posts = db.table<[id: number, service: string], PartialPost>('TEMP-POSTS', 'ordered-binary', 'msgpack');
 
-const valuesTable = db.openDB<ScraperEntry, [service: Service, id: number | string]>('values', {
-    keyEncoding: 'ordered-binary',
-    encoding: 'msgpack',
-    sharedStructuresKey: 4_294_967_295,
-});
+const valuesTable = db.table<[service: Service, id: number | string], ScraperEntry>('values', 'ordered-binary', 'msgpack');
 
 // key: single int64 containing an 8x8 similarity bit table
 // value: [Service, ID] index into valuesTable
-const phashTable = db.openDB<[service: Service, id: number | string], Uint8Array>('phash', {
-    keyEncoding: 'binary',
-    encoding: 'ordered-binary',
-});
+const phashTable = db.table<Uint8Array, [service: Service, id: number | string]>('phash', 'binary', 'ordered-binary');
 
 // key: uint8 array of 2-bit encoded values, of length ((gridSize * gridSize * 8) / 4), default gridSize is 9
 // value: [Service, ID] index into valuesTable
-const puzzleTable = db.openDB<[service: Service, id: number | string], Uint8Array>('phash', {
-    keyEncoding: 'binary',
-    encoding: 'ordered-binary',
-});
+const puzzleTable = db.table<Uint8Array, [service: Service, id: number | string]>('puzzle', 'binary', 'ordered-binary');
 
 // https://stackoverflow.com/a/55646905
 function parseBigInt(value: string, radix: number) {
@@ -159,6 +140,12 @@ export class E6PostEntry {
     }
 }
 
+/**
+ * Generates an image signature from an image and adds it to the database.
+ * @param input The image data or a path to a file.
+ * @param value The booru post to relate the image signature to.
+ * @returns A key that can be used to fetch the entry using {@link getEntry}
+ */
 export async function addEntry(input: string
     | Buffer
     | ArrayBuffer
@@ -170,8 +157,7 @@ export async function addEntry(input: string
     | Uint32Array
     | Int32Array
     | Float32Array
-    | Float64Array
-    | string,
+    | Float64Array,
     value: PostEntry
 ) {
     const img = sharp(input, { failOnError: false });
@@ -189,7 +175,7 @@ export async function addEntry(input: string
         phashTable.put(uint64ToUint8Array(phashSignature), [value.service, uid]);
     });
 
-    return uid;
+    return [value.service, uid];
 }
 
 export function *iteratePuzzleHashes(): Generator<[hash: LuminosityLevel[], key: [service: Service, id: string | number]]> {
@@ -204,10 +190,11 @@ export function *iteratePHashHashes(): Generator<[hash: bigint, key: [service: S
     }
 }
 
+/**
+ * Gets an image entry from the database by key.
+ * @param key the key, from {@link addEntry}, {@link iteratePuzzleHashes} or {@link iteratePHashHashes}.
+ * @returns ScraperEntry
+ */
 export function getEntry(key: [service: Service, id: string | number]) {
     return valuesTable.get(key);
 }
-
-process.on('beforeExit', () => {
-    db.close();
-});

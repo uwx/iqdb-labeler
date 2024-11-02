@@ -6,10 +6,10 @@ import { CURSOR_UPDATE_INTERVAL, FIREHOSE_URL } from './config.js';
 import { labelPost } from './label.js';
 import logger from './logger.js';
 
-import { set, table } from './lmdb.js';
 import { bot } from './bot.js';
 import { access, readFile } from 'node:fs/promises';
 import { getDbConfigItem, setDbConfigItem } from './utils/db-config.js';
+import { db } from './lmdb.js';
 
 let cursor = 0;
 let cursorUpdateInterval: NodeJS.Timeout;
@@ -64,8 +64,8 @@ jetstream.on('error', (error) => {
     logger.error(`Jetstream error: ${error.message}`);
 });
 
-const followers = set<string>('followers');
-const followRecords = table<string, string>('follow-records', 'ordered-binary', 'string');
+const followers = db.set<string>('followers');
+const followRecords = db.table<string, string>('follow-records', 'ordered-binary', 'string');
 jetstream.onCreate('app.bsky.graph.follow', ({ commit: { record, rkey }, did }) => {
     // const uri = `at://${did}/app.bsky.graph.follow/${rkey}`;
     if (record.subject === bot.profile.did) {

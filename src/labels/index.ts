@@ -2,7 +2,7 @@ import { createReadStream } from 'node:fs';
 import readline from 'node:readline/promises';
 import { BQTag, BQTagAlias, BQTagImplication, BQWikiPage } from './danbooru-query.js';
 import { type ComAtprotoLabelDefs } from '@atproto/api';
-import { compactDb, db, table } from '../lmdb.js';
+import { db } from '../lmdb.js';
 import logger from '../logger.js';
 
 export const enum TagCategory {
@@ -105,14 +105,14 @@ async function* readJsonLines<T>(path: string) {
     fileStream.close();
 }
 
-export const tags = table<number, Tag>('tags', 'uint32');
-export const tagsByName = table<string, number>('tag-by-name');
-export const tagsByNameOrAlias = table<string, number>('tag-by-alias');
+export const tags = db.table<number, Tag>('tags', 'uint32');
+export const tagsByName = db.table<string, number>('tag-by-name');
+export const tagsByNameOrAlias = db.table<string, number>('tag-by-alias');
 
-export const tagAliases = table<number, TagAlias>('aliases', 'uint32');
+export const tagAliases = db.table<number, TagAlias>('aliases', 'uint32');
 
-export const wikiPages = table<number, WikiPage>('wiki-pages', 'uint32');
-export const wikiPagesByTitle = table<string, number>('wiki-page-by-name');
+export const wikiPages = db.table<number, WikiPage>('wiki-pages', 'uint32');
+export const wikiPagesByTitle = db.table<string, number>('wiki-page-by-name');
 
 export async function injectDanbooruTags() {
     logger.info('clearing tags db');
@@ -266,7 +266,7 @@ export async function injectDanbooruTags() {
 
     logger.info('compacting db');
     console.time('compact db');
-    await compactDb();
+    await db.compactDb();
     console.timeEnd('compact db');
 }
 
