@@ -265,10 +265,10 @@ export async function injectDanbooruTags() {
         }
     });
 
-    logger.info('compacting db');
-    console.time('compact db');
-    await db.compactDb();
-    console.timeEnd('compact db');
+    // logger.info('compacting db');
+    // console.time('compact db');
+    // await db.compactDb();
+    // console.timeEnd('compact db');
 }
 
 export async function *getLabelValueDefinitions() {
@@ -320,12 +320,23 @@ export async function *getLabelValueDefinitions() {
     }
 }
 
+/**
+ * Converts a tag, tag ID or tag name into a formatted label identifier of max 15 characters containing only characters in the alphabet /[a-z-]/.
+ * The converted string contains the tag ID encoded in a base 26 alphabet (lowercase a-z) alongside the sanitized tag name, truncating if necessary.
+ *
+ * @param tag
+ */
 export function getLabelIdForTag(tag: Tag): string;
 export function getLabelIdForTag(tag: number | string): string | undefined;
 export function getLabelIdForTag(tag: number | string | Tag): string | undefined {
     function getSanitizedTagName(tag: Tag) {
-        return `${alphabetToString(tag.id)}-${tag.name?.toLowerCase()?.replace(/[^a-z-]/g, '-').replace(/-{2,}/g, '-') ?? ''}`
-            .slice(0, 15);
+        const name = `${alphabetToString(tag.id)}-${tag.name?.toLowerCase()?.replace(/[^a-z-]/g, '-').replace(/-{2,}/g, '-') ?? ''}`;
+
+        if (name.indexOf('-') >= 14) {
+            throw new Error('Sanity check failed: tag ID is too big to fit in a feed rkey');
+        }
+
+        return name.slice(0, 15);
     }
 
     if (typeof tag === 'string') {
@@ -344,6 +355,19 @@ export function getLabelIdForTag(tag: number | string | Tag): string | undefined
     } else {
         return getSanitizedTagName(tag);
     }
+}
+
+/**
+ * Parses a string in the format returned by {@link getLabelIdForTag} into a tuple of [danbooru tag number, remainder]
+ * @param labelIdentifier The label identifier returned by {@link getLabelIdForTag}
+ */
+export function parseLabelIdentifier(labelIdentifier: string): [tag: number, snippet: string] {
+    const tagIdSnippetSeparator = labelIdentifier.indexOf('-');
+    if (tagIdSnippetSeparator === -1) throw new Error('Not a valid label identifier!');
+    const stringifiedTagId = labelIdentifier.slice(0, tagIdSnippetSeparator);
+    const snippet = labelIdentifier.slice(tagIdSnippetSeparator + 1);
+
+    return [alphabetParseInt(stringifiedTagId), snippet];
 }
 
 function indexOfAny(str: string, ...options: string[]) {
