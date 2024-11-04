@@ -12,11 +12,15 @@ export class LmdbWrapper {
         this.db_ = this.openDb();
         logger.debug('Opened DB');
 
-        process.on('beforeExit', () => {
+        const self = this;
+        function beforeExit() {
+            process.off('beforeExit', beforeExit);
             logger.debug('Closing DB');
-            this.db.close();
+            self.db?.close();
             logger.debug('Closed DB');
-        });
+        }
+
+        process.on('beforeExit', beforeExit);
     }
 
     get db() { return this.db_; };
