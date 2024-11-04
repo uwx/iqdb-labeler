@@ -1,9 +1,8 @@
 import 'dotenv/config';
 
-import { tunnel } from "cloudflared";
-import { BSKY_IDENTIFIER, BSKY_PASSWORD, METRICS_PORT, PORT } from "./config.js";
-import { plcClearLabeler, plcRequestToken, plcSetupLabeler } from "@skyware/labeler/scripts";
-import logger from './logger.js';
+import { BSKY_IDENTIFIER, BSKY_PASSWORD, METRICS_PORT, PORT } from "../config.js";
+import { plcClearLabeler, plcRequestToken, plcSetupLabeler } from "#skyware/labeler/scripts/index.js";
+import logger from '../logger.js';
 import { XRPCError } from "@atcute/client";
 import { access, readFile, writeFile } from "node:fs/promises";
 import { createInterface } from "node:readline/promises";
@@ -17,27 +16,7 @@ export function genPrivateAndPublicKeys(privateKey?: Uint8Array) {
     return [privateKey, publicKey] as const;
 }
 
-export async function startTunnelAndUpdateLabeler() {
-    const { url: tunnelUrl, child: tunnelChildProcess, stop: stopTunnel } = tunnel({ '--url': `http://localhost:${PORT}` });
-    const { url: monitoringUrl, child: metricsChildProcess, stop: stopMonitoringTunnel } = tunnel({ '--url': `http://localhost:${METRICS_PORT}` });
-
-    tunnelChildProcess.stdout?.on('data', (data) => {
-        console.log(`Tunnel ${data.toString('utf-8').trim()}`);
-    });
-    tunnelChildProcess.stderr?.on('data', (data) => {
-        console.error(`Tunnel ${data.toString('utf-8').trim()}`);
-    });
-
-    metricsChildProcess.stdout?.on('data', (data) => {
-        console.log(`Metrics: ${data.toString('utf-8').trim()}`);
-    });
-    metricsChildProcess.stderr?.on('data', (data) => {
-        console.error(`Metrics: ${data.toString('utf-8').trim()}`);
-    });
-
-    tunnelUrl.then(tunnelUrl => logger.info(`Created tunnel at ${tunnelUrl}`));
-    monitoringUrl.then(monitoringUrl => logger.info(`Created monitoring tunnel at ${monitoringUrl}`));
-
+export async function setupTunnel(url: string) {
     let keys: readonly [privateKey: Uint8Array, publicKey: Uint8Array];
 
     if (process.env.SIGNING_KEY) {
@@ -51,24 +30,24 @@ export async function startTunnelAndUpdateLabeler() {
         let token = await readFile('./.plc-token', 'utf-8');
 
         try {
-            logger.info('Clearing labeler');
-            await plcClearLabeler({
-                identifier: BSKY_IDENTIFIER,
-                password: BSKY_PASSWORD,
-                plcToken: token,
-            });
+            //logger.info('Clearing labeler');
+            //await plcClearLabeler({
+            //    identifier: BSKY_IDENTIFIER,
+            //    password: BSKY_PASSWORD,
+            //    plcToken: token,
+            //});
 
             logger.info('Setting up labeler');
             await plcSetupLabeler({
                 identifier: BSKY_IDENTIFIER,
                 password: BSKY_PASSWORD,
                 plcToken: token,
-                endpoint: await tunnelUrl,
+                endpoint: url,
                 privateKey: keys[0]
             });
             logger.info('Set up labeler');
         } catch (err) {
-            if (err instanceof XRPCError && err.kind === 'ExpiredToken') {
+            if (typeof err === 'object' && err != null && 'kind' in err && (err.kind === 'ExpiredToken' || err.kind === 'InvalidToken')) {
                 logger.info('Token expired, refreshing');
                 await plcRequestToken({
                     identifier: BSKY_IDENTIFIER,
@@ -80,24 +59,24 @@ export async function startTunnelAndUpdateLabeler() {
                     output: process.stdout
                 });
 
-                token = await rl.question('Input the token received in your email> ');
+                token = await rl.question('Input the token received in your email > ');
                 rl.close();
 
                 await writeFile('./.plc-token', token, 'utf-8');
 
-                logger.info('Clearing labeler');
-                await plcClearLabeler({
-                    identifier: BSKY_IDENTIFIER,
-                    password: BSKY_PASSWORD,
-                    plcToken: token,
-                });
+                //logger.info('Clearing labeler');
+                //await plcClearLabeler({
+                //    identifier: BSKY_IDENTIFIER,
+                //    password: BSKY_PASSWORD,
+                //    plcToken: token,
+                //});
 
                 logger.info('Setting up labeler');
                 await plcSetupLabeler({
                     identifier: BSKY_IDENTIFIER,
                     password: BSKY_PASSWORD,
                     plcToken: token,
-                    endpoint: await tunnelUrl,
+                    endpoint: url,
                     privateKey: keys[0]
                 });
                 logger.info('Set up labeler');
@@ -116,7 +95,7 @@ export async function startTunnelAndUpdateLabeler() {
             output: process.stdout
         });
 
-        const token = await rl.question('Input the token received in your email> ');
+        const token = await rl.question('Input the token received in your email: ');
         rl.close();
 
         await writeFile('./.plc-token', token, 'utf-8');
@@ -133,23 +112,10 @@ export async function startTunnelAndUpdateLabeler() {
             identifier: BSKY_IDENTIFIER,
             password: BSKY_PASSWORD,
             plcToken: token,
-            endpoint: await tunnelUrl,
+            endpoint: url,
             privateKey: keys[0]
         });
         logger.info('Set up labeler');
     }
 
-    process.on('beforeExit', () => {
-        stopTunnel();
-        stopMonitoringTunnel();
-    });
-
-    return {
-        stop() {
-            stopTunnel();
-            stopMonitoringTunnel();
-        }
-    }
 }
-
-await startTunnelAndUpdateLabeler();

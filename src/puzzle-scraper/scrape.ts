@@ -1,18 +1,32 @@
 import logger from "../logger.js";
-import { addEntry, cursors, DanbooruPostEntry, E6PostEntry, posts as postsDb } from "./database.js";
-import Danbooru from "./scrapers/client/danbooru.js";
-import E621, { USER_AGENT as E6_USER_AGENT } from "./scrapers/client/e621.js";
+import { addEntry, cursors, hashesReverse, IdPostEntry, Service } from "./database.js";
+import * as clients from "../utils/booru-client/index.js";
+import { USER_AGENT as E6_USER_AGENT } from "../utils/booru-client/clients/e621.js";
+import { db } from "../lmdb.js";
+import { PartialPost } from "../utils/booru-client/types.js";
 
-const scrapers = [['danbooruv3', new Danbooru(), DanbooruPostEntry], ['e6v3', new E621(), E6PostEntry]] as const;
+const scrapers = [
+    ['danbooruv3', new clients.Danbooru(), (id: number, md5?: string) => new IdPostEntry(id, md5, Service.Danbooru), Service.Danbooru],
+    ['e6v3', new clients.E621(), (id: number, md5?: string) => new IdPostEntry(id, md5, Service.E621), Service.E621],
+    ['Konachan', new clients.Konachan(), (id: number, md5?: string) => new IdPostEntry(id, md5, Service.Konachan), Service.Konachan],
+    ['Rule34', new clients.Rule34(), (id: number, md5?: string) => new IdPostEntry(id, md5, Service.Rule34), Service.Rule34],
+    ['Yandere', new clients.Yandere(), (id: number, md5?: string) => new IdPostEntry(id, md5, Service.Yandere), Service.Yandere],
+    ['Gelbooru', new clients.Gelbooru(), (id: number, md5?: string) => new IdPostEntry(id, md5, Service.Gelbooru), Service.Gelbooru],
+] as const;
 
 const validExts = new Set(['png', 'apng', 'webp', 'jpg', 'jpeg', 'gif', 'bmp']);
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+const checkExisting = true;
+
+const postsDb = db.table<[service: Service, id: number | string], PartialPost>('TEMP-POSTS', 'ordered-binary', 'msgpack');
+const errorsDb = db.table<[service: Service, id: number | string], string>('TEMP-ERRORS', 'ordered-binary', 'msgpack');
+
 while (true) {
     const p: Promise<unknown>[] = [];
 
-    for (const [scraperName, scraper, postEntryCtor] of scrapers) {
+    for (const [scraperName, scraper, postEntryCtor, svc] of scrapers) {
         p.push((async () => {
             const startId = cursors.get(scraperName) ?? 0;
 
@@ -21,52 +35,88 @@ while (true) {
             logger.info(`Scraping ${scraperName} from #${startId}`);
 
             const posts = await scraper.search(startId);
-            for (const post of posts) {
-                logger.info(`Got ${scraperName} #${post.id}`);
-                await postsDb.put([post.id, scraperName], post);
 
-                if (!post.thumbnail_image) {
-                    logger.warn(`${scraperName} ${post.id}: no post.thumbnail_image`);
+            mast:
+            for (const post of posts) {
+                const postKey = [svc, post.id] satisfies [service: Service, id: string | number];
+
+                if (checkExisting && postsDb.doesExist(postKey) && hashesReverse.doesExist(postKey)) {
+                    logger.warn(`${scraperName} ${post.id}: already scraped`);
+                    continue;
+                }
+
+                logger.info(`Got ${scraperName} #${post.id}`);
+                await postsDb.put(postKey, post);
+
+                if ('missing' in post && post.missing) {
+                    logger.warn(`${scraperName} ${post.id}: post missing`);
+                    continue;
+                }
+
+                if ('deleted' in post && post.deleted) {
+                    logger.warn(`${scraperName} ${post.id}: post deleted`);
+                    continue;
+                }
+
+                if (!post.thumbnail_image.length) {
+                    logger.error(post, `${scraperName} ${post.id}: no post.thumbnail_image`);
                     continue;
                 }
 
                 if (!validExts.has(post.ext!.toLowerCase())) {
-                    logger.info(`#${post.id} invalid ext: ${post.ext}`);
+                    logger.info(post, `#${post.id} invalid ext: ${post.ext}`);
                     continue;
                 }
 
-                let buf: ArrayBuffer;
+                let buf: ArrayBuffer | undefined = undefined;
 
-                let retry = false;
-                do {
-                    try {
-                        const response = await fetch(post.thumbnail_image, { headers: { 'User-Agent': E6_USER_AGENT }});
-                        if (!response.ok) {
-                            if (response.status === 404) {
-                                logger.error(`#${post.id} 404'd`);
-                                continue;
+                opts:
+                for (const thumbnailImageOption of post.thumbnail_image) {
+                    let retry = false;
+
+                    retrying:
+                    do {
+                        try {
+                            logger.debug(`${scraperName} #${post.id} trying ${thumbnailImageOption}`);
+                            const response = await fetch(thumbnailImageOption, { headers: { 'User-Agent': E6_USER_AGENT }});
+                            if (!response.ok) {
+                                if (response.status === 404) {
+                                    logger.error(`#${post.id} ${thumbnailImageOption} 404'd`);
+                                    continue opts;
+                                }
+
+                                throw new Error(`#${post.id} ${thumbnailImageOption} ${response.status}: ${response.statusText}`);
                             }
-                            throw new Error(`${response.status}: ${response.statusText}`);
-                        }
 
-                        buf = await response.arrayBuffer();
-                    } catch (err) {
-                        if (err instanceof TypeError && err.message === 'fetch failed') { // usually ECONNRESET
-                            retry = true;
-                            await delay(1000);
-                            continue;
+                            buf = await response.arrayBuffer();
+
+                            if (buf !== undefined && buf.byteLength > 0) { // rule34.xxx sometimes returns images with length 0
+                                break opts;
+                            }
+                        } catch (err) {
+                            if (err instanceof TypeError && err.message === 'fetch failed') { // usually ECONNRESET
+                                retry = true;
+                                await delay(1000);
+                                continue retrying;
+                            } else {
+                                throw err;
+                            }
                         }
-                    }
-                } while (retry);
+                    } while (retry);
+                }
+
+                if (buf === undefined) {
+                    logger.error(post);
+                    throw new Error(`no ${scraperName} #${post.id} thumbnail options worked!`);
+                }
 
                 try {
-                    const entry = await addEntry(buf!, new postEntryCtor(post.id, post.md5));
-                    logger.info(`Added entry as ID ${entry}`);
+                    const [key, ] = await addEntry(buf, postEntryCtor(post.id, post.md5));
+                    logger.info(`Added entry as ID ${key}`);
                 } catch (err) {
-                    logger.error(`While processsing post #${post.id}`);
-                    console.error(post);
-                    console.error(err);
-                    throw err;
+                    logger.error({post, err}, `While processsing post #${post.id}`);
+                    await errorsDb.put(postKey, ''+err);
+                    // throw err;
                 }
             }
 

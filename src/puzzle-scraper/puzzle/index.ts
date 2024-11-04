@@ -374,7 +374,7 @@ export function encodeToBitArray(levels: LuminosityLevel[]): ArrayBuffer {
  * Decodes luminosity levels from an ArrayBuffer.
  * @param levels
  */
-export function decodeFromBitArray(array: ArrayBuffer): LuminosityLevel[] {
+export function decodeFromBitArray(array: ArrayBufferLike): LuminosityLevel[] {
     const bitArray = new Uint8ClampedArray(array);
 
     const levels = new Array<LuminosityLevel>(array.byteLength * 4);

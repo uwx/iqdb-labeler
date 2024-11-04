@@ -1,9 +1,10 @@
 import path from 'node:path';
 import { spawn } from 'promisify-child-process'
-import { ulid } from 'ulid';
+
 import logger from '../../logger.js';
 import { Match, Matcher } from '../matcher.js';
 import { tagsByNameOrAlias } from '../../labels/index.js';
+import { ulid } from '../../utils/ulid.js';
 
 const AUTH_KEY = ulid(); // probably could be better
 
@@ -14,7 +15,7 @@ const deepDanbooruProcess = spawn(pythonExe[0], [...pythonExe.slice(1), 'test.py
     env: {
         ...process.env,
         THRESHOLD: '0.5',
-        AUTH_KEY,
+        AUTH_KEY: AUTH_KEY.toCanonical(),
     }
 });
 
@@ -41,7 +42,7 @@ process.on('beforeExit', () => {
 });
 
 export class DeepDanbooruMatcher extends Matcher {
-    async getMatch(imageUrl: string) {
+    async getMatchImpl(imageUrl: string) {
         const blob = await fetch(imageUrl).then(e => e.blob());
 
         const formData = new FormData();
@@ -55,16 +56,12 @@ export class DeepDanbooruMatcher extends Matcher {
             }
         }).then(e => e.json())) as [tag: string, p: number][];
 
-        const tags: number[] = [];
-        for (const [tag, p] of result) {
-            const tagId = tagsByNameOrAlias.get(tag);
-            if (tagId !== undefined) {
-                tags.push(tagId);
-            }
-        }
+        const tags = result
+            .map(([tag, p]) => tagsByNameOrAlias.get(tag))
+            .filter(e => e !== undefined);
 
         if (tags.length > 0) {
-            return { similarity: 0.5, tags } satisfies Match;
+            return { similarity: Math.max(...result.map(([tag, p]) => p)), tags } satisfies Match;
         }
     }
 }

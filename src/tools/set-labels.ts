@@ -1,21 +1,24 @@
-import { type ComAtprotoLabelDefs } from '@atproto/api';
-import { type LoginCredentials, setLabelerLabelDefinitions } from '../labeler/src/scripts/index.js';
+import { type LoginCredentials, setLabelerLabelDefinitions } from '#skyware/labeler/scripts/index.js';
 
 import { BSKY_IDENTIFIER, BSKY_PASSWORD } from '../config.js';
 import { getLabelValueDefinitions, injectDanbooruTags } from '../labels/index.js';
 import logger from '../logger.js';
+import { credentialManager } from '../session.js';
 import { arrayFromAsync } from '../utils.js';
 
 const loginCredentials: LoginCredentials = {
     identifier: BSKY_IDENTIFIER,
     password: BSKY_PASSWORD,
+    credentialManager
 };
 
-// logger.info('injecting danbooru tags');
-// console.time('injecting danbooru tags');
-// await injectDanbooruTags();
-// console.timeEnd('injecting danbooru tags');
-// logger.info('injected danbooru tags');
+if (process.argv.slice(2).includes('--inject-danbooru-tags')) {
+    logger.info('injecting danbooru tags');
+    console.time('injecting danbooru tags');
+    await injectDanbooruTags();
+    console.timeEnd('injecting danbooru tags');
+    logger.info('injected danbooru tags');
+}
 
 try {
     console.time('setLabelerLabelDefinitions');

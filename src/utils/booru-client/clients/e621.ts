@@ -19,20 +19,27 @@ export default class E621 extends Booru<number, E621Post> {
     }
 
     makePartialPost(post: E621Post): PartialPost {
-        return {
+        const partialPost = {
             id: post.id!,
+            deleted: false,
 
-            image: post.file?.url,
-            thumbnail_image: post.sample?.has && post.sample.url || post.file?.url,
+            image: [post.file?.url, ...(post.sample?.has ? [post.sample?.url] : [])].filter(e => e !== undefined).filter(e => e),
+            thumbnail_image: [...(post.sample?.has ? [post.sample.url] : []), post.file?.url].filter(e => e !== undefined).filter(e => e),
             rating: post.rating as 'g' | 's' | 'q' | 'e',
-            tags: Object.entries(post.tags).map(([k, v]) => `${k}:${v}`),
-            artist: post.tags.artist,
+            tags: Object.entries(post.tags).flatMap(([k, arr]) => arr.map(v => `${k}:${v}`)),
+            artist: post.tags.artist ?? [],
             source: post.sources,
             created_at: post.created_at,
-            ext: post.file?.ext,
+            ext: post.file?.ext ?? (post.sample?.has ? this.getUrlExt(post.sample.url) : undefined)!, // TODO
 
             md5: post.file?.md5,
-        };
+        } satisfies PartialPost;
+
+        if (!partialPost.thumbnail_image.length && (partialPost.tags.includes('general:loli') || partialPost.tags.includes('general:shota') || partialPost.tags.includes('general:young') || partialPost.tags.includes('general:cub'))) {
+            return { id: post.id, missing: true }; // not available via API.
+        }
+
+        return partialPost;
     }
 
     async search(after: number = 0, limit: number = 320): Promise<PartialPost[]> {
@@ -41,7 +48,7 @@ export default class E621 extends Booru<number, E621Post> {
         }
 
         return await this.baseHandler.get(`https://e621.net/posts.json?limit=${limit}&page=a${after}`, { userAgent: this.userAgent })
-            .then(e => ((e as any).posts as E621Post[]).map(e => this.makePartialPost(e)));
+            .then(e => ((e as { posts: E621Post[] }).posts as E621Post[]).map(e => this.makePartialPost(e)));
     }
 
     async getLastPostId(): Promise<number> {

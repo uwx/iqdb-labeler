@@ -1,9 +1,10 @@
 import { createReadStream } from 'node:fs';
 import readline from 'node:readline/promises';
 import { BQTag, BQTagAlias, BQTagImplication, BQWikiPage } from './danbooru-query.js';
-import { type ComAtprotoLabelDefs } from '@atproto/api';
 import { db } from '../lmdb.js';
 import logger from '../logger.js';
+import { alphabetToString, alphabetParseInt  } from '../utils/ints.js';
+import { ComAtprotoLabelDefs } from '@atcute/client/lexicons';
 
 export const enum TagCategory {
     General = 0,
@@ -280,18 +281,29 @@ export async function *getLabelValueDefinitions() {
     };
 
     const ignoredTags = new Set<string>(['banned_artist']);
+    let i = 0;
 
-    for await (const tag of [...tags.getRange().map(e => e.value)].sort((a, b) => (b.postCount ?? 0) - (a.postCount ?? 0))) {
-        // console.log(tag);
-        if (tag.isDeprecated) continue;
-        if (!tag.postCount || tag.postCount < 10000) continue;
-        if (tag.category == TagCategory.Meta) continue;
-        if (tag.name && ignoredTags.has(tag.name)) continue;
+    const identifiers = new Map<string, Tag>();
+
+    for await (const tag of tags.getRange()
+        .map(e => e.value)
+        .filter(tag => !tag.isDeprecated && tag.postCount && tag.postCount >= 10000 && tag.category !== TagCategory.Meta && (!tag.name || !ignoredTags.has(tag.name)))
+        .asArray
+        .sort((a, b) => (b.postCount ?? 0) - (a.postCount ?? 0))
+    ) {
+        logger.debug(`${i++}: ${tag.name ?? tag.id}`);
 
         const wikiPage = tag.wikiPageId ? wikiPages.get(tag.wikiPageId) : undefined;
 
+        const identifier = assertLabelIdValid(getLabelIdForTag(tag)!);
+
+        if (identifiers.has(identifier)) {
+            const otherTag = identifiers.get(identifier)!;
+            throw new Error(`Identifier conflict: ${identifier} is used by both ${tag.name} (#${tag.id}) and ${otherTag.name} (#${otherTag.id})`)
+        }
+
         yield {
-            identifier: getLabelIdForTag(tag.id)!,
+            identifier,
             severity: 'inform',
             blurs: 'none',
             defaultSetting: 'warn',
@@ -308,13 +320,29 @@ export async function *getLabelValueDefinitions() {
     }
 }
 
-export function getLabelIdForTag(tag: number | string) {
+export function getLabelIdForTag(tag: Tag): string;
+export function getLabelIdForTag(tag: number | string): string | undefined;
+export function getLabelIdForTag(tag: number | string | Tag): string | undefined {
+    function getSanitizedTagName(tag: Tag) {
+        return `${alphabetToString(tag.id)}-${tag.name?.toLowerCase()?.replace(/[^a-z-]/g, '-').replace(/-{2,}/g, '-') ?? ''}`
+            .slice(0, 15);
+    }
+
     if (typeof tag === 'string') {
-        if (tag.startsWith('dan-')) return tag;
         const tagId = tagsByName.get(tag);
-        if (tagId) return `dan-${tagId.toString(36)}`;
+        if (tagId) {
+            const tag1 = tags.get(tagId);
+            if (tag1) {
+                return getSanitizedTagName(tag1);
+            }
+        }
+    } else if (typeof tag === 'number') {
+        const tag1 = tags.get(tag);
+        if (tag1) {
+            return getSanitizedTagName(tag1);
+        }
     } else {
-        return `dan-${tag.toString(36)}`;
+        return getSanitizedTagName(tag);
     }
 }
 
@@ -368,3 +396,9 @@ function removeDtext(str: string): string {
     ;
             // TODO the rest... https://danbooru.donmai.us/posts?tags=help%3Adtext
 }
+
+function assertLabelIdValid(labelId: string): string {
+    if (/[^a-z-]/.test(labelId)) throw new Error(`Invalid label ID: ${labelId}`);
+    return labelId;
+}
+
