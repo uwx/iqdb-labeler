@@ -6,6 +6,7 @@ import { labelDefinitions } from "../utils/label-definitions.js";
 import { credentialManager } from "../session.js";
 import { RichText } from "#skyware/bot";
 import { XRPCError } from "@atcute/client";
+import { getFeedRkeyFromLabelIdentifier } from "../utils/feed-helpers.js";
 
 async function publishFeeds() {
 	const { agent, session } = await loginAgent({
@@ -30,10 +31,12 @@ async function publishFeeds() {
                     repo: session.did,
                     collection: 'app.bsky.feed.generator',
                     limit: 100,
+                    reverse: true,
+                    cursor
                 }
             });
 
-            if (!result.data.records.length) {
+            if (!result.data.records.length || result.data.records.every(e => feeds.find(e1 => e1.uri == e.uri))) {
                 break;
             }
 
@@ -46,15 +49,15 @@ async function publishFeeds() {
                 rkey: e.uri.slice(e.uri.lastIndexOf('/') + 1),
             })));
 
-            if (result.data.cursor == cursor) break;
-
             cursor = result.data.cursor;
 
             if (!cursor) break;
         } while (cursor);
     }
 
-    const feedsByIdentifier = Object.fromEntries(feeds.map(feed => [feed.rkey, feed.value]))
+    const feedsByRkey = Object.fromEntries(feeds.map(feed => [feed.rkey, feed.value]))
+
+    logger.info(feeds.length, 'feeds.length');
 
     const creates: Array<Brand.Union<ComAtprotoRepoApplyWrites.Create | ComAtprotoRepoApplyWrites.Update>> = [];
     const updates: Array<Brand.Union<ComAtprotoRepoApplyWrites.Update>> = [];
@@ -68,8 +71,8 @@ async function publishFeeds() {
             .addMention(`@${BSKY_IDENTIFIER}`, DID as At.DID)
             .build();
 
-        (labelIdentifier in feedsByIdentifier ? updates : creates).push({
-            $type: labelIdentifier in feedsByIdentifier ? 'com.atproto.repo.applyWrites#update' : 'com.atproto.repo.applyWrites#create',
+        (labelIdentifier in feedsByRkey ? updates : creates).push({
+            $type: labelIdentifier in feedsByRkey ? 'com.atproto.repo.applyWrites#update' : 'com.atproto.repo.applyWrites#create',
 
             collection: "app.bsky.feed.generator",
             rkey: labelIdentifier,
@@ -88,7 +91,7 @@ async function publishFeeds() {
                     }]
                 },
 
-                createdAt: feedsByIdentifier[labelIdentifier]?.createdAt ?? new Date().toISOString(),
+                createdAt: feedsByRkey[labelIdentifier]?.createdAt ?? new Date().toISOString(),
             } satisfies AppBskyFeedGenerator.Record,
         });
     }
@@ -103,40 +106,40 @@ async function publishFeeds() {
         });
     }
 
-    logger.info(creates, 'Creating');
-    for (const chunk of chunks(creates, 1)) {
-        logger.info(chunk, 'Writing chunk');
+    logger.info(`Creating ${creates.length} entries`);
+    for (const chunk of chunks(creates, 10)) {
+        logger.info(chunk, `Writing chunk of size ${chunk.length}`);
         await agent.call('com.atproto.repo.applyWrites', {
             data: {
                 repo: session.did,
                 writes: chunk as Brand.Union<ComAtprotoRepoApplyWrites.Create | ComAtprotoRepoApplyWrites.Update | ComAtprotoRepoApplyWrites.Delete>[],
                 validate: true,
             }
-        })
+        });
     }
 
-    logger.info(creates, 'Updating');
+    logger.info(`Updating ${updates.length} entries`);
     for (const chunk of chunks(updates, 10)) {
-        logger.info(chunk, 'Writing chunk');
+        logger.info(chunk, `Writing chunk of size ${chunk.length}`);
         await agent.call('com.atproto.repo.applyWrites', {
             data: {
                 repo: session.did,
                 writes: chunk as Brand.Union<ComAtprotoRepoApplyWrites.Create | ComAtprotoRepoApplyWrites.Update | ComAtprotoRepoApplyWrites.Delete>[],
                 validate: true,
             }
-        })
+        });
     }
 
-    logger.info(creates, 'Deleting');
+    logger.info(`Deleting ${deletes.length} entries`);
     for (const chunk of chunks(deletes, 10)) {
-        logger.info(chunk, 'Writing chunk');
+        logger.info(chunk, `Writing chunk of size ${chunk.length}`);
         await agent.call('com.atproto.repo.applyWrites', {
             data: {
                 repo: session.did,
                 writes: chunk as Brand.Union<ComAtprotoRepoApplyWrites.Create | ComAtprotoRepoApplyWrites.Update | ComAtprotoRepoApplyWrites.Delete>[],
                 validate: true,
             }
-        })
+        });
     }
 }
 
