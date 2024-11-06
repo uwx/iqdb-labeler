@@ -1,7 +1,7 @@
 import { AppBskyFeedGenerator, At, Brand, ComAtprotoRepoApplyWrites, ComAtprotoRepoCreateRecord } from "@atcute/client/lexicons";
 import { loginAgent } from "#skyware/labeler/scripts/util.js";
 import { BSKY_IDENTIFIER, BSKY_PASSWORD, DID, FEEDS_DOMAIN } from "../config.js";
-import logger from "../logger.js";
+import logger from "../backend/logger.js";
 import { labelDefinitions } from "../utils/label-definitions.js";
 import { credentialManager } from "../session.js";
 import { RichText } from "#skyware/bot";

@@ -2,9 +2,9 @@ import fastify, { FastifyBaseLogger, FastifyInstance, FastifyRequest } from 'fas
 import { XRPCError } from '@atcute/client';
 import { verifyJwt } from '#skyware/labeler/util/crypto.js';
 import { DidDocument } from '@atcute/client/utils/did';
-import { FEEDS_DOMAIN } from './config.js';
+import { FEEDS_DOMAIN } from '../config.js';
 import { LabelerServer } from '#skyware/labeler/index.js';
-import { labelDefinitions } from './utils/label-definitions.js';
+import { labelDefinitions } from '../utils/label-definitions.js';
 import { AppBskyFeedDefs, AppBskyFeedGetFeedSkeleton } from '@atcute/client/lexicons';
 import fastifyPlugin from 'fastify-plugin';
 

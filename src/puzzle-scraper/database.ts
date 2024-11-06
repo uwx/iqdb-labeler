@@ -26,6 +26,11 @@ const phashTable = db.table<Uint8Array, [service: Service, id: number | string]>
 // value: [Service, ID] index into valuesTable
 const puzzleTable = db.table<Uint8Array, [service: Service, id: number | string]>('puzzle', 'binary', 'ordered-binary');
 
+// temp
+import { PartialPost } from "../utils/booru-client/types.js";
+export const postsDb = db.table<[service: Service, id: number | string], PartialPost>('TEMP-POSTS', 'ordered-binary', 'msgpack');
+export const errorsDb = db.table<[service: Service, id: number | string], string>('TEMP-ERRORS', 'ordered-binary', 'msgpack');
+
 export const enum Service {
     Danbooru,
     E621,
@@ -59,10 +64,10 @@ export interface PostEntry {
 }
 
 export class IdPostEntry {
-    constructor(public readonly postId: number, public readonly md5?: string, public readonly service: Service) {}
+    constructor(public readonly postId: number, public readonly service: Service, public readonly md5?: string) {}
 
     static fromScraperEntry(scraperEntry: ScraperEntry) {
-        return new this(+scraperEntry.i, scraperEntry.m, scraperEntry.s);
+        return new this(+scraperEntry.i, scraperEntry.s, scraperEntry.m);
     }
 
     toScraperEntry(): ScraperEntry {

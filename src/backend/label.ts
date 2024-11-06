@@ -1,15 +1,15 @@
 // import { DELETE, LABELS, LABEL_LIMIT } from './constants.js';
 import logger from './logger.js';
 import { bot } from './bot.js';
-import { Post } from '@skyware/bot';
+import { Post } from '#skyware/bot';
 import { AppBskyFeedPost } from '@atcute/client/lexicons';
-import { matchers } from './taggers/index.js';
+import { matchers } from '../taggers/index.js';
 import { db } from './lmdb.js';
-import { Match } from './taggers/matcher.js';
-import { getLabelIdForTag, tags } from './labels/index.js';
-import { labelDefinitions } from './utils/label-definitions.js';
+import { Match } from '../taggers/matcher.js';
+import { getLabelIdForTag, tags } from '../labels/index.js';
+import { labelDefinitions } from '../utils/label-definitions.js';
 import { inspect } from 'node:util';
-import { BACKEND_DOMAIN, FEEDS_DOMAIN } from './config.js';
+import { BACKEND_DOMAIN } from '../config.js';
 import { aesEncrypt } from './crypto.js';
 
 //labelerServer.app.addHook('onRequest', request => {

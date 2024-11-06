@@ -3,13 +3,13 @@ import fs from 'node:fs';
 import ws from 'ws';
 
 import { CURSOR_UPDATE_INTERVAL, DID, FIREHOSE_URL } from './config.js';
-import { labelPost } from './label.js';
-import logger from './logger.js';
+import { labelPost } from './backend/label.js';
+import logger from './backend/logger.js';
 
-import { bot } from './bot.js';
+import { bot } from './backend/bot.js';
 import { access, readFile } from 'node:fs/promises';
 import { getDbConfigItem, setDbConfigItem } from './utils/db-config.js';
-import { db } from './lmdb.js';
+import { db } from './backend/lmdb.js';
 
 let cursor = 0;
 let cursorUpdateInterval: NodeJS.Timeout;

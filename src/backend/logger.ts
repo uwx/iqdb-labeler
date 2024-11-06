@@ -21,6 +21,7 @@ function extractStuff(line: string | undefined) {
     }
 }
 
+// https://gist.github.com/miguelmota/4df504cff4bfebcff982dd06bde7a34a
 const baseDir = path.resolve(import.meta.dirname, '..');
 function traceCaller<CustomLevels extends string = never, UseOnlyCustomLevels extends boolean = boolean>(pinoInstance: pino.Logger<CustomLevels, UseOnlyCustomLevels>): pino.Logger<CustomLevels, UseOnlyCustomLevels> {
     const get = (target: any, p: string | symbol) => p === asJsonSym ? asJson : target[p];
