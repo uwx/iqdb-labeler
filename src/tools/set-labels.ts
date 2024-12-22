@@ -11,14 +11,15 @@ const loginCredentials: LoginCredentials = {
     password: BSKY_PASSWORD,
 };
 
-logger.info('injecting danbooru tags');
-console.time('injecting danbooru tags');
-await injectDanbooruTags();
-console.timeEnd('injecting danbooru tags');
-logger.info('injected danbooru tags');
+// logger.info('injecting danbooru tags');
+// console.time('injecting danbooru tags');
+// await injectDanbooruTags();
+// console.timeEnd('injecting danbooru tags');
+// logger.info('injected danbooru tags');
 
 try {
     console.time('setLabelerLabelDefinitions');
+    logger.info('Setting label definitions.');
     await setLabelerLabelDefinitions(
         loginCredentials,
         (await arrayFromAsync(getLabelValueDefinitions()))
