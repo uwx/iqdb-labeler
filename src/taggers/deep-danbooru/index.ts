@@ -3,7 +3,7 @@ import { spawn } from 'promisify-child-process'
 
 import logger from '../../backend/logger.js';
 import { Match, Matcher } from '../matcher.js';
-import { tagsByNameOrAlias } from '../../labels/index.js';
+import { getTag } from '../../labels/index.js';
 import { ulid } from '../../utils/ulid.js';
 
 const AUTH_KEY = ulid(); // probably could be better
@@ -56,9 +56,11 @@ export class DeepDanbooruMatcher extends Matcher {
             }
         }).then(e => e.json())) as [tag: string, p: number][];
 
-        const tags = result
-            .map(([tag, p]) => tagsByNameOrAlias.get(tag))
-            .filter(e => e !== undefined);
+        const tags: number[] = [];
+        for (const [tag, p] of result) {
+            const theTag = await getTag(tag);
+            if (theTag) tags.push(theTag.id);
+        }
 
         if (tags.length > 0) {
             return { similarity: Math.max(...result.map(([tag, p]) => p)), tags } satisfies Match;

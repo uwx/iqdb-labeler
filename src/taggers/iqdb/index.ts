@@ -1,4 +1,4 @@
-import { getOrDefault, tagsByName, tagsByNameOrAlias } from '../../labels/index.js';
+import { getTag } from '../../labels/index.js';
 import { IQDBLibs_2D } from './iqdb-client/src/h.js';
 import { makeSearchFunc } from './iqdb-client/src/index.js';
 import { Match, Matcher, MatchError, Rating } from '../matcher.js';
@@ -44,9 +44,9 @@ export class IqdbMatcher extends Matcher {
 
                 const tags: number[] = [];
                 for (const tag of post.tag_string.split(' ')) {
-                    const tagId = tagsByNameOrAlias.get(tag);
-                    if (tagId !== undefined) {
-                        tags.push(tagId);
+                    const theTag = await getTag(tag);
+                    if (theTag !== undefined) {
+                        tags.push(theTag.id);
                     }
                 }
 

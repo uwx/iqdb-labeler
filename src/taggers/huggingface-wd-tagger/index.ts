@@ -1,6 +1,6 @@
 import { Client } from "@gradio/client";
 import { Match, Matcher, MatchError } from "../matcher.js";
-import { tagsByNameOrAlias } from "../../labels/index.js";
+import { getTag } from "../../labels/index.js";
 
 export const enum Models {
     'SmilingWolf/wd-swinv2-tagger-v3' = 'SmilingWolf/wd-swinv2-tagger-v3',
@@ -57,11 +57,12 @@ export class HuggingFaceMatcher extends Matcher {
 
         const [tagString, { label: rating }, { confidences: characterConfidences }, { confidences: tagConfidences }] = result.data as HFResult;
 
-        const tags = tagString
-            .split(', ')
+        const tags: number[] = [];
+        for (const tag of tagString.split(', ')) {
             // convert stable diffusion tag to danbooru tag
-            .map(e => tagsByNameOrAlias.get(e.trim().replace(/\\/g, '').replace(/ /g, '_')))
-            .filter(e => e !== undefined);
+            const theTag = await getTag(tag.trim().replace(/\\/g, '').replace(/ /g, '_'));
+            if (theTag) tags.push(theTag.id);
+        }
 
         // if (rating) tags.push(tagsByNameOrAlias.get('rating:' + rating[0]));
 
