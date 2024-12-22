@@ -5,7 +5,7 @@ export function getFeedRkeyFromLabelIdentifier(labelIdentifier: string) {
     return alphabetToString(parseLabelIdentifier(labelIdentifier)[0]);
 }
 
-export function getLabelIdentifierFromFeedRkey(rkey: string) {
+export async function getLabelIdentifierFromFeedRkey(rkey: string) {
     if (/[^a-z]/.test(rkey)) throw new Error('rkey is not valid! contains characters outside the base-26 alphabet');
-    return getLabelIdForTag(alphabetParseInt(rkey));
+    return await getLabelIdForTag(alphabetParseInt(rkey));
 }

@@ -1,0 +1,153 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+// generator client {
+//     provider = "prisma-client-js"
+// }
+
+generator kysely {
+    provider = "prisma-kysely"
+    // Optionally provide a destination directory for the generated file
+    // and a filename of your choice
+    output = "../src/backend/db"
+    fileName = "types.ts"
+}
+
+model User {
+  id    Int     @id @default(autoincrement())
+  email String  @unique
+  name  String?
+}
+
+model Match {
+    url String @id
+    similarity Float?
+
+    md5 String?
+    sha1 String?
+    sha256 String?
+    /// @kyselyType('g' | 's' | 'q' | 'e')
+    rating String?
+    sourceUrl String?
+    pixivId Int?
+    fileSize Int?
+
+    // tags Json?
+    tags String
+}
+
+model Follower {
+    did String @id
+    rkey String
+
+    @@index(rkey)
+}
+
+model Liker {
+    did String @id
+    rkey String
+
+    @@index(rkey)
+}
+
+model Label {
+    id Int @id @default(autoincrement())
+    src String
+    uri String
+    cid String?
+    val String
+    /// @kyselyType(boolean)
+    neg Boolean? @default(false)
+    cts DateTime
+    exp DateTime?
+    sig Bytes
+
+    @@index(val)
+}
+
+model Tag {
+    id Int @id
+    name String? @unique
+    words String // string[]
+    /// @kyselyType(boolean)
+    isDeprecated Boolean?
+    updatedAt DateTime?
+    createdAt DateTime?
+    category Int?
+    postCount Int?
+    aliases TagAlias[]
+    impliedBy TagImplication[] @relation("impliedBy")
+    implies TagImplication[] @relation("implies")
+    
+    @@index(name)
+}
+
+model WikiPage {
+    id Int @id
+
+    title String?
+    body String?
+
+    otherNames String // string[]
+
+    /// @kyselyType(boolean)
+    isDeleted Boolean?
+    /// @kyselyType(boolean)
+    isLocked Boolean?
+
+    updatedAt DateTime?
+    createdAt DateTime?
+
+    @@index(title)
+}
+
+model TagImplication {
+    id Int @id
+
+    forumPostId Int?
+    forumTopicId Int?
+    approverId Int?
+    creatorId Int?
+
+    updatedAt DateTime?
+    createdAt DateTime?
+
+    status String?
+    reason String?
+
+    antecedentName String?
+    consequentName String?
+
+    impliedBy Tag? @relation("impliedBy", fields: [consequentName], references: [name])
+    implies Tag? @relation("implies", fields: [antecedentName], references: [name])
+}
+
+model TagAlias {
+    id Int @id
+
+    forumPostId Int?
+    forumTopicId Int?
+    approverId Int?
+    creatorId Int?
+
+    updatedAt DateTime?
+    createdAt DateTime?
+
+    status String?
+    reason String?
+
+    antecedentName String?
+    consequentName String?
+
+    consequent Tag? @relation(fields: [consequentName], references: [name])
+
+    @@index(antecedentName)
+}
+
+datasource db {
+    provider = "sqlite"
+    url      = "file:../db/main.db"
+}

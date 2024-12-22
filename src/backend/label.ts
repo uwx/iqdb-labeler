@@ -4,15 +4,13 @@ import { bot } from './bot.js';
 import { Post } from '#skyware/bot';
 import { AppBskyFeedPost } from '@atcute/client/lexicons';
 import { matchers } from '../taggers/index.js';
-import { Match } from '../taggers/matcher.js';
-import { getLabelIdForTag, tags } from '../labels/index.js';
+import { getSanitizedTagName, getTag } from '../labels/index.js';
 import { labelDefinitions } from '../utils/label-definitions.js';
 import { inspect } from 'node:util';
 import { BACKEND_DOMAIN } from '../config.js';
 import { aesEncrypt } from './crypto.js';
-import { db, takeUniqueOrThrow } from './db.js';
-import { eq } from 'drizzle-orm';
-import { matchesByUrl } from './schema.js';
+import { db } from './db.js';
+import { Tag } from './db/types.js';
 
 //labelerServer.app.addHook('onRequest', request => {
 //    console.log(`onRequest`, request);
@@ -56,10 +54,10 @@ export async function labelPost(post: Post | (AppBskyFeedPost.Record & { uri: st
 
     for (const imageUrl of images) {
         let match = await db
-            .select()
-            .from(matchesByUrl)
-            .where(eq(matchesByUrl.url, imageUrl))
-            .then(takeUniqueOrThrow);
+            .selectFrom('Match')
+            .selectAll()
+            .where('Match.url', '==', imageUrl)
+            .executeTakeFirst();
 
         if (!match) {
             for (const [matcher, matchCandidate] of await Promise.all(matchers.map(async matcher => [matcher, await matcher.getMatch(imageUrl)] as const))) {
@@ -81,16 +79,28 @@ export async function labelPost(post: Post | (AppBskyFeedPost.Record & { uri: st
                             pixivId: matchCandidate.pixivId ?? null,
                             fileSize: matchCandidate.fileSize ?? null,
 
-                            tags: matchCandidate.tags,
+                            tags: JSON.stringify(matchCandidate.tags),
                         };
 
                         await db
-                            .insert(matchesByUrl)
+                            .insertInto('Match')
                             .values(match)
-                            .onConflictDoUpdate({
-                                target: matchesByUrl.url,
-                                set: match
-                            });
+                            .onConflict(oc => oc
+                                .column('url')
+                                .doUpdateSet({
+                                    similarity: matchCandidate.similarity,
+        
+                                    md5: matchCandidate.md5 ?? null,
+                                    sha1: matchCandidate.sha1 ?? null,
+                                    sha256: matchCandidate.sha256 ?? null,
+                                    rating: matchCandidate.rating ?? null,
+                                    sourceUrl: matchCandidate.sourceUrl ?? null,
+                                    pixivId: matchCandidate.pixivId ?? null,
+                                    fileSize: matchCandidate.fileSize ?? null,
+        
+                                    tags: JSON.stringify(matchCandidate.tags),
+                                }))
+                            .execute();
                         
                         break;
                     }
@@ -98,8 +108,8 @@ export async function labelPost(post: Post | (AppBskyFeedPost.Record & { uri: st
             }
         }
 
-        if (match?.tags?.length) {
-            for (const tagId of match.tags) {
+        if (match?.tags) {
+            for (const tagId of JSON.parse(match.tags)) {
                 labels.add(tagId);
             }
         }
@@ -113,12 +123,22 @@ export async function labelPost(post: Post | (AppBskyFeedPost.Record & { uri: st
     //});
 
     if (labels.size > 0) {
-        await addLabels(post.uri, [...labels]
-            .map(id => tags.get(id))
-            .filter(tag => tag !== undefined)
-            .sort((a, b) => a.name?.localeCompare(b.name ?? '') ?? -1)
-            .map(tag => getLabelIdForTag(tag))
-            .filter(labelId => labelId in labelDefinitions), post.cid);
+        async function getActualLabels(labelIds: Set<number>) {
+            const tags: Tag[] = [];
+
+            for (const labelId of labelIds) {
+                const tag = await getTag(labelId);
+                if (tag === undefined) continue;
+                tags.push(tag);
+            }
+
+            return tags
+                .sort((a, b) => a.name?.localeCompare(b.name ?? '') ?? -1)
+                .map(tag => getSanitizedTagName(tag))
+                .filter(labelId => labelId in labelDefinitions);
+        }
+
+        await addLabels(post.uri, await getActualLabels(labels), post.cid);
     } else {
         logger.info('No matches');
     }

@@ -2,8 +2,6 @@ import logger from "../backend/logger.js";
 import { addEntry, cursors, errorsDb, hashesReverse, IdPostEntry, postsDb, Service } from "./database.js";
 import * as clients from "../utils/booru-client/index.js";
 import { USER_AGENT as E6_USER_AGENT } from "../utils/booru-client/clients/e621.js";
-import { db } from "../backend/lmdb.js";
-import { PartialPost } from "../utils/booru-client/types.js";
 
 const scrapers = [
     ['danbooruv3', new clients.Danbooru(), (id: number, md5?: string) => new IdPostEntry(id, Service.Danbooru, md5), Service.Danbooru],
@@ -21,17 +19,6 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const checkExisting = true;
 
 const scraperPromise: Promise<unknown>[] = [];
-
-// i fucked up!!!!
-const wrongPostsDb = db.table<[service: Service, id: number | string], PartialPost>('TEMP-POSTS', 'ordered-binary', 'msgpack');
-const wrongErrorsDb = db.table<[service: Service, id: number | string], string>('TEMP-ERRORS', 'ordered-binary', 'msgpack');
-
-await errorsDb.transaction(async () => {
-    for (const {key, value} of wrongErrorsDb.getRange()) {
-        errorsDb.put(key, value);
-    }
-    await errorsDb.clearAsync();
-});
 
 for (const [scraperName, scraper, postEntryCtor, svc] of scrapers) {
     scraperPromise.push((async () => {
@@ -54,13 +41,6 @@ for (const [scraperName, scraper, postEntryCtor, svc] of scrapers) {
                 const postKey = [svc, post.id] satisfies [service: Service, id: string | number];
 
                 if (checkExisting) {
-                    let wrongPost;
-                    // eslint-disable-next-line no-cond-assign
-                    if (wrongPost = wrongPostsDb.get(postKey)) {
-                        wrongPostsDb.remove(postKey);
-                        await postsDb.put(postKey, wrongPost);
-                    }
-
                     if (postsDb.doesExist(postKey) && hashesReverse.doesExist(postKey)) {
                         logger.warn(`${scraperName} ${post.id}: already scraped`);
                         continue;

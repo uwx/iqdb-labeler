@@ -1,14 +1,14 @@
 import { ConfigurationStorage } from 'config-storage';
 
-class Configuration<T extends Record<string, unknown>> {
+class Configuration<T extends object> {
     private constructor(private readonly storage: ConfigurationStorage, private readonly key?: string) {
     }
     
-    static async getConfiguration<T extends Record<string, unknown>>(key?: string) {
+    static async getConfiguration<T extends object>(key?: string) {
         return new Configuration<T>(await ConfigurationStorage.getStorage('iqdb-labeler'), key);
     }
 
-    subconfig<T extends Record<string, unknown>>(subkey: string) {
+    subconfig<T extends object>(subkey: string) {
         return new Configuration<T>(this.storage, this.key ? `${this.key}.${subkey}` : subkey);
     }
     
@@ -25,4 +25,8 @@ class Configuration<T extends Record<string, unknown>> {
     }
 }
 
-export const config = await Configuration.getConfiguration<Record<string, never>>();
+interface MainConfig {
+    jetstreamCursor: number;
+}
+
+export const config = await Configuration.getConfiguration<MainConfig>();

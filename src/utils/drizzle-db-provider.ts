@@ -1,36 +1,36 @@
 import { DbProvider } from "#skyware/labeler/db-provider.js";
-import { and, asc, eq, gt, inArray, like, max, or, sql } from "drizzle-orm";
-import { db, takeUniqueOrUndefined } from "../backend/db.js";
-import { labels } from "../backend/schema.js";
+import { db } from "../backend/db.js";
 import type { SavedLabel, SignedLabel } from "#skyware/labeler";
 import toBuffer from 'typedarray-to-buffer';
 import { XRPCError } from "@atcute/client";
 import { At } from "@atcute/client/lexicons";
+import { sql } from "kysely";
 
 export class DrizzleDbProvider implements DbProvider {
 
-    constructor(dbPath?: string) {
+    constructor() {
     }
 
     async queryLabels(identifier: string, cursor = 0, limit = 1): Promise<SavedLabel[]> {
         return await db
-            .select()
-            .from(labels)
-            .where(and(eq(labels.val, identifier), gt(labels.id, cursor)))
-            .orderBy(asc(labels.id))
-            .limit(limit);
+            .selectFrom('Label')
+            .selectAll()
+            .where(eb => eb.and([eb('val', '==', identifier), eb('id', '>', cursor)]))
+            .orderBy('id asc')
+            .limit(limit)
+            .execute() as SavedLabel[];
     }
 
     async saveLabel(label: SignedLabel): Promise<number> {
         const { src, uri, cid, val, neg, cts, exp, sig } = label;
 
-        const results = await db.insert(labels).values({
+        const results = await db.insertInto('Label').values({
             src, uri, cid, val, neg, cts, exp, sig: toBuffer(sig)
-        }).onConflictDoNothing();
+        }).onConflict(oc => oc.doNothing()).execute();
 
-        if (!results.rowsAffected) throw new Error("Failed to insert label");
+        if (!results.length) throw new Error("Failed to insert label");
 
-        return Number(results.lastInsertRowid);
+        return Number(results[0].insertId);
     }
 
     async searchLabels(cursor?: number, limit = 50, uriPatterns: string[] = [], sources: string[] = []) {
@@ -50,34 +50,35 @@ export class DrizzleDbProvider implements DbProvider {
         });
 
         return await db
-            .select()
-            .from(labels)
-            .where(and(...[
-                sql`(1 = 1)`,
-                ...(patterns.length > 0 ? [or(...patterns.map(pattern => like(labels.uri, pattern)))] : []),
-                ...(sources.length > 0 ? [inArray(labels.src, sources as At.DID[])] : []),
-                ...(cursor ? [gt(labels.id, cursor!)] : []),
+            .selectFrom('Label')
+            .selectAll()
+            .where(eb => eb.and([
+                ...(patterns.length > 0 ? [eb.or(patterns.map(pattern => eb('uri', 'like', pattern)))] : []),
+                ...(sources.length > 0 ? [eb('src', 'in', sources as At.DID[])] : []),
+                ...(cursor ? [eb('id', '>', cursor)] : []),
             ]))
-            .orderBy(asc(labels.id))
-            .limit(limit) as Array<SavedLabel>;
+            .orderBy('id asc')
+            .limit(limit)
+            .execute() as Array<SavedLabel>;
     }
 
     async isCursorInTheFuture(cursor: number) {
-        await db.select({ id: max(labels.id) }).from(labels).limit(1).then(takeUniqueOrUndefined);
-        const latest = this.db.prepare(`
-            SELECT MAX(id) AS id FROM labels
-        `).get() as { id: number };
+        // TODO how to do this with kysely
+        const latest = await db.executeQuery(sql<{ id: number }>`
+            SELECT MAX(id) AS id FROM Label
+        `.compile(db));
 
-        return cursor > latest.id;
+        console.log('isCursorInTheFuture', latest.rows[0].id)
+
+        return cursor > latest.rows[0].id;
     }
 
     iterateLabels(cursor = 0) {
-        const stmt = this.db.prepare<[number]>(`
-            SELECT * FROM labels
-            WHERE id > ?
-            ORDER BY id ASC
-        `);
-
-        return stmt.iterate(cursor) as Iterable<SavedLabel>;
+        return db
+            .selectFrom('Label')
+            .selectAll()
+            .where('id', '>', cursor)
+            .orderBy('id asc')
+            .stream() as AsyncIterableIterator<SavedLabel>;
     }
 }
