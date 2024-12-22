@@ -21,7 +21,7 @@ importers:
         specifier: ^7.9.1
         version: 7.9.1
       '@skyware/bot':
-        specifier: ^0.3.3
+        specifier: ^0.3.6
         version: 0.3.6
       '@skyware/jetstream':
         specifier: ^0.1.8
@@ -65,6 +65,9 @@ importers:
       stream-to-async-iterator:
         specifier: ^1.0.0
         version: 1.0.0
+      ws:
+        specifier: ^8.18.0
+        version: 8.18.0
     devDependencies:
       '@eslint/js':
         specifier: ^9.12.0

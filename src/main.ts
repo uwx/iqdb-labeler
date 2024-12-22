@@ -1,10 +1,14 @@
 import { CommitCreateEvent, Jetstream } from '@skyware/jetstream';
 import fs from 'node:fs';
 
-import { CURSOR_UPDATE_INTERVAL, DID, FIREHOSE_URL, METRICS_PORT, PORT } from './config.js';
-import { label, labelerServer } from './label.js';
+import { CURSOR_UPDATE_INTERVAL, FIREHOSE_URL, METRICS_PORT, PORT } from './config.js';
+import { label, labelerServer, labelPost } from './label.js';
 import logger from './logger.js';
 import { startMetricsServer } from './metrics.js';
+
+import { set, table } from './lmdb.js';
+import { bot } from './bot.js';
+import { Facet, Post, PostEmbed, postEmbedFromView } from '@skyware/bot';
 
 let cursor = 0;
 let cursorUpdateInterval: NodeJS.Timeout;
@@ -30,7 +34,9 @@ try {
 
 const jetstream = new Jetstream({
     wantedCollections: [
-        'app.bsky.feed.like'
+        'app.bsky.feed.post',
+        'app.bsky.graph.follow',
+        'app.bsky.feed.like',
     ],
     endpoint: FIREHOSE_URL,
     cursor: cursor,
@@ -57,9 +63,51 @@ jetstream.on('error', (error) => {
     logger.error(`Jetstream error: ${error.message}`);
 });
 
-jetstream.onCreate('app.bsky.feed.like', event => {
-    if (event.commit.record.subject.uri.includes(DID)) {
-        event.commit.record.subject.uri
+const followers = set<string>('followers');
+const followRecords = table<string, string>('follow-records', 'ordered-binary', 'string');
+jetstream.onCreate('app.bsky.graph.follow', ({ commit: { record, rkey }, did }) => {
+    // const uri = `at://${did}/app.bsky.graph.follow/${rkey}`;
+    if (record.subject === bot.profile.did) {
+        logger.debug(`Followed by ${did}`);
+        followers.add(did);
+        followRecords.put(rkey, did);
+
+        // this.emit("follow", { user: await bot.getProfile(did), uri });
+    }
+});
+
+// is this the only way to find out if the follow record is for myself?
+jetstream.onDelete('app.bsky.graph.follow', ({ commit: { rkey }, did }) => {
+    if (followRecords.doesExist(rkey)) {
+        logger.debug(`Unfollowed by ${did}`);
+        followers.delete(did);
+        followRecords.remove(rkey);
+    }
+});
+
+jetstream.onCreate('app.bsky.feed.like', async ({ commit: { record }, did }) => {
+    if (followers.has(did)) {
+        labelPost(record.subject.uri).catch((error: unknown) => {
+            logger.error(`Unexpected error labeling ${record.subject.uri}: ${error}`);
+        });
+
+        // event.commit.record.subject.uri
+        // label(event.did, event.commit.record.subject.uri.split('/').pop()!).catch((error: unknown) => {
+        //     logger.error(`Unexpected error labeling ${event.did}: ${error}`);
+        // });
+    }
+});
+
+jetstream.onCreate('app.bsky.feed.post', async (event) => {
+    const { commit, did } = event;
+    const { record, cid, rkey } = commit;
+
+    if (followers.has(did)) {
+        labelPost({...record, uri: `at://${did}/app.bsky.feed.post/${rkey}`}).catch((error: unknown) => {
+            logger.error(`Unexpected error labeling at://${did}/app.bsky.feed.post/${rkey}: ${error}`);
+        });
+
+        // event.commit.record.subject.uri
         // label(event.did, event.commit.record.subject.uri.split('/').pop()!).catch((error: unknown) => {
         //     logger.error(`Unexpected error labeling ${event.did}: ${error}`);
         // });
