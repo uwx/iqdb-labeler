@@ -53,8 +53,8 @@ class Configuration<T extends object> {
 interface MainConfig {
     jetstreamCursor: number;
     trackedUsers: {
-        likers: { rkey: string, did: string }[];
-        followers: { rkey: string, did: string }[];
+        likers: { rkey: string | null, did: string }[];
+        followers: { rkey: string | null, did: string }[];
     };
 }
 
