@@ -6,7 +6,7 @@
         "moduleResolution": "NodeNext",
         "allowSyntheticDefaultImports": true,
         "esModuleInterop": true,
-        "types": ["node"],
+        "types": ["node", "bun"],
         "outDir": "bin",
     },
     "include": ["src/**/*.ts", "src/utils/id128/src/common/byte-array.js"],

@@ -1,4 +1,3 @@
-
 import { equal } from 'assert';
 import { load, DataType, open, close, arrayConstructor, define } from 'ffi-rs';
 import { readFile } from 'node:fs/promises';
@@ -6,7 +5,7 @@ import { join } from 'node:path';
 import { TextDecoder } from 'node:util';
 import { platform } from 'os';
 
-import { LuminosityLevel } from 'puzzle-scraper/puzzle/index.js';
+import { LuminosityLevel } from '../puzzle/index.js';
 
 // First open dynamic library with key for close
 // It only needs to be opened once.

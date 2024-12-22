@@ -3,7 +3,7 @@ import assert, { deepStrictEqual } from "node:assert";
 import test from "node:test";
 
 import { TEST_CASES_ROOT } from "../../test/utils.js";
-import { loadAndGenerateSignature } from "../puzzle-nativeaot.js";
+import { loadAndGenerateSignature } from "../puzzle-nativeaot-bun.js";
 import { LuminosityLevel } from "../../puzzle/index.js";
 
 const f = await readFile(`${TEST_CASES_ROOT}/original-mona.jpg`);
