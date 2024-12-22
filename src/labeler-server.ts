@@ -1,15 +1,15 @@
-import metricsServer from './metrics.js';
+import metricsServer from './services/metrics.js';
 import { DID, PORT, SIGNING_KEY } from './config.js';
 import { labelerServerPlugin, labelerServerKey } from '#skyware/labeler/index.js';
-import logger from './logger.js';
+import logger from './backend/logger.js';
 import fastify, { FastifyBaseLogger, FastifyError, FastifyReply, FastifyRequest } from 'fastify';
-import feedGenerator from './feed-generator.js';
+import feedGenerator from './services/feed-generator.js';
 import { XRPCError } from '@atcute/client';
-import { aesDecrypt } from './crypto.js';
+import { aesDecrypt } from './backend/crypto.js';
 import { BotLabelRecordOptions } from '#skyware/bot';
 import { fastifyWebsocket } from "@fastify/websocket";
 import { LmdbDbProvider } from './utils/lmdb-skyware-db-provider.js';
-import { db } from './lmdb.js';
+import { db } from './backend/lmdb.js';
 
 const app = fastify({
     logger: logger as FastifyBaseLogger

@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { rename } from 'fs/promises';
 import { Database, DatabaseOptions, Key, open, RootDatabase, RootDatabaseOptions, Transaction, TransactionFlags } from 'lmdb';
-import logger from '../logger.js';
+import logger from '../backend/logger.js';
 
 const sharedStructuresKey = Symbol.for('structures');
 

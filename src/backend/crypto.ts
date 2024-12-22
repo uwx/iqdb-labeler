@@ -1,5 +1,5 @@
 import { webcrypto } from "node:crypto";
-import { LABELER_PASSWORD, LABELER_SALT } from "./config.js";
+import { LABELER_PASSWORD, LABELER_SALT } from "../config.js";
 import { toString as ui8ToString } from "uint8arrays/to-string";
 import { fromString as ui8FromString } from "uint8arrays/from-string";
 

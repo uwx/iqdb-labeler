@@ -1,6 +1,6 @@
 import { DefaultDbProvider } from "#skyware/labeler/db-provider.js";
 import { db } from "../lmdb.js";
-import logger from "../logger.js";
+import logger from "../backend/logger.js";
 import { LmdbDbProvider } from "../utils/lmdb-skyware-db-provider.js";
 
 const sqliteProvider = new DefaultDbProvider();

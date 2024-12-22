@@ -1,4 +1,4 @@
-import logger from "../logger.js";
+import logger from "../backend/logger.js";
 
 export const enum Rating {
     General = 'g',

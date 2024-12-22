@@ -3,7 +3,7 @@ import 'dotenv/config';
 import { tunnel } from "cloudflared";
 import { BSKY_IDENTIFIER, BSKY_PASSWORD, METRICS_PORT, PORT } from "../config.js";
 import { plcClearLabeler, plcRequestToken, plcSetupLabeler } from "#skyware/labeler/scripts/index.js";
-import logger from '../logger.js';
+import logger from '../backend/logger.js';
 import { XRPCError } from "@atcute/client";
 import { access, readFile, writeFile } from "node:fs/promises";
 import { createInterface } from "node:readline/promises";

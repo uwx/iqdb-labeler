@@ -2,7 +2,7 @@ import { AtpSessionData, CredentialManager, XRPCError } from "@atcute/client";
 import { ComAtprotoServerCreateSession, ComAtprotoServerGetSession } from "@atcute/client/lexicons";
 import { BotLoginOptions } from "#skyware/bot";
 import { db } from "./lmdb.js";
-import { BSKY_IDENTIFIER, BSKY_PASSWORD, DID } from "./config.js";
+import { BSKY_IDENTIFIER, BSKY_PASSWORD, DID } from "../config.js";
 import logger from "./logger.js";
 
 export const credentialManager = new CredentialManager({ service: "https://bsky.social" });

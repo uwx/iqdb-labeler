@@ -1,4 +1,4 @@
-import { db } from "../lmdb.js";
+import { db } from "../backend/lmdb.js";
 
 type ConfigItems = {
     jetstreamCursor: number

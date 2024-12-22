@@ -1,6 +1,6 @@
 import { BSKY_IDENTIFIER, BSKY_PASSWORD } from "../config.js";
 import { getLabelerLabelDefinitions } from "#skyware/labeler/scripts/index.js";
-import { credentialManager } from "../session.js";
+import { credentialManager } from "../backend/session.js";
 
 /**
  * The currently defined label definitions for this bot.

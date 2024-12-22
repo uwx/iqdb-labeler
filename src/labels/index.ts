@@ -1,8 +1,8 @@
 import { createReadStream } from 'node:fs';
 import readline from 'node:readline/promises';
 import { BQTag, BQTagAlias, BQTagImplication, BQWikiPage } from './danbooru-query.js';
-import { db } from '../lmdb.js';
-import logger from '../logger.js';
+import { db } from '../backend/lmdb.js';
+import logger from '../backend/logger.js';
 import { alphabetToString, alphabetParseInt  } from '../utils/ints.js';
 import { ComAtprotoLabelDefs } from '@atcute/client/lexicons';
 

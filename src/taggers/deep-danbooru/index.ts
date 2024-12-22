@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { spawn } from 'promisify-child-process'
 
-import logger from '../../logger.js';
+import logger from '../../backend/logger.js';
 import { Match, Matcher } from '../matcher.js';
 import { tagsByNameOrAlias } from '../../labels/index.js';
 import { ulid } from '../../utils/ulid.js';
