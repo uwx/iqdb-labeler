@@ -15,7 +15,11 @@ const app = fastify({
 });
 
 // needs to be registered before all other routes because of fastifyWebsocket...
-await app.register(fastifyWebsocket);
+await app.register(fastifyWebsocket, {
+    // This line is key, as it passes the HTTPS-enabled
+    // Node.js server to the underlying `ws` module:
+    server: app.server
+});
 
 await app.register(labelerServerPlugin, { did: DID, signingKey: SIGNING_KEY, db: new KyselyDbProvider() });
 export const labelerServer = app[labelerServerKey];

@@ -15,11 +15,11 @@ export type Label = {
     cid: string | null;
     val: string;
     /**
-     * @kyselyType(boolean)
+     * @kyselyType(1 | 0)
      */
-    neg: Generated<boolean | null>;
-    cts: string;
-    exp: string | null;
+    neg: Generated<1 | 0 | null>;
+    cts: number;
+    exp: number | null;
     sig: Buffer;
 };
 export type Liker = {
@@ -44,13 +44,13 @@ export type Match = {
 export type Tag = {
     id: number;
     name: string | null;
-    words: string;
+    words: string | null;
     /**
-     * @kyselyType(boolean)
+     * @kyselyType(1 | 0)
      */
-    isDeprecated: boolean | null;
-    updatedAt: string | null;
-    createdAt: string | null;
+    isDeprecated: 1 | 0 | null;
+    updatedAt: number | null;
+    createdAt: number | null;
     category: number | null;
     postCount: number | null;
 };
@@ -60,8 +60,8 @@ export type TagAlias = {
     forumTopicId: number | null;
     approverId: number | null;
     creatorId: number | null;
-    updatedAt: string | null;
-    createdAt: string | null;
+    updatedAt: number | null;
+    createdAt: number | null;
     status: string | null;
     reason: string | null;
     antecedentName: string | null;
@@ -73,8 +73,8 @@ export type TagImplication = {
     forumTopicId: number | null;
     approverId: number | null;
     creatorId: number | null;
-    updatedAt: string | null;
-    createdAt: string | null;
+    updatedAt: number | null;
+    createdAt: number | null;
     status: string | null;
     reason: string | null;
     antecedentName: string | null;
@@ -91,15 +91,15 @@ export type WikiPage = {
     body: string | null;
     otherNames: string;
     /**
-     * @kyselyType(boolean)
+     * @kyselyType(1 | 0)
      */
-    isDeleted: boolean | null;
+    isDeleted: 1 | 0 | null;
     /**
-     * @kyselyType(boolean)
+     * @kyselyType(1 | 0)
      */
-    isLocked: boolean | null;
-    updatedAt: string | null;
-    createdAt: string | null;
+    isLocked: 1 | 0 | null;
+    updatedAt: number | null;
+    createdAt: number | null;
 };
 export type DB = {
     Follower: Follower;

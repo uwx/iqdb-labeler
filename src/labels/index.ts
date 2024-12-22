@@ -4,8 +4,9 @@ import { BQTag, BQTagAlias, BQTagImplication, BQWikiPage } from './danbooru-quer
 import logger from '../backend/logger.js';
 import { alphabetToString, alphabetParseInt  } from '../utils/ints.js';
 import { ComAtprotoLabelDefs } from '@atcute/client/lexicons';
-import { Tag } from '../backend/db/types.js';
+import { Tag, TagAlias, TagImplication, WikiPage } from '../backend/db/types.js';
 import { db } from '../backend/db.js';
+import { Insertable, InsertType } from 'kysely';
 
 export const enum TagCategory {
     General = 0,
@@ -58,20 +59,27 @@ export async function injectDanbooruTags() {
     await db.transaction().execute(async trx => {
         for await (const tag of readJsonLines<BQTag>('./danbooru-data/tags.jsonl')) {
             // console.log('tag', tag.id);
-            await trx.insertInto('Tag').values({
+            const value: Insertable<Tag> = {
                 id: tag.id,
 
                 name: tag.name,
                 words: JSON.stringify(tag.words),
 
-                isDeprecated: tag.is_deprecated,
+                isDeprecated: tag.is_deprecated ? 1 : 0,
 
-                updatedAt: tag.updated_at?.value,
-                createdAt: tag.created_at?.value,
+                updatedAt: tag.updated_at?.value ? new Date(tag.updated_at?.value).getTime() : null,
+                createdAt: tag.created_at?.value ? new Date(tag.created_at?.value).getTime() : null,
 
                 category: tag.category,
                 postCount: tag.post_count,
-            }).execute();
+            };
+            await trx
+                .insertInto('Tag')
+                .values(value)
+                .onConflict(oc => oc
+                    .column('id')
+                    .doUpdateSet(value)
+                ).execute();
         }
     })
 
@@ -79,7 +87,8 @@ export async function injectDanbooruTags() {
     await db.transaction().execute(async trx => {
         for await (const tagAlias of readJsonLines<BQTagAlias>('./danbooru-data/tag_aliases.jsonl')) {
             // console.log('tagAlias', tagAlias.id);
-            await trx.insertInto('TagAlias').values({
+
+            const value: Insertable<TagAlias> = {
                 id: tagAlias.id,
 
                 forumPostId: Number(tagAlias.forum_post_id),
@@ -87,15 +96,22 @@ export async function injectDanbooruTags() {
                 approverId: Number(tagAlias.approver_id),
                 creatorId: tagAlias.creator_id,
 
-                updatedAt: tagAlias.updated_at?.value,
-                createdAt: tagAlias.created_at?.value,
+                updatedAt: tagAlias.updated_at?.value ? new Date(tagAlias.updated_at?.value).getTime() : null,
+                createdAt: tagAlias.created_at?.value ? new Date(tagAlias.created_at?.value).getTime() : null,
 
                 status: tagAlias.status,
                 reason: tagAlias.reason,
 
                 antecedentName: tagAlias.antecedent_name,
                 consequentName: tagAlias.consequent_name,
-            }).execute();
+            };
+            await trx
+                .insertInto('TagAlias')
+                .values(value)
+                .onConflict(oc => oc
+                    .column('id')
+                    .doUpdateSet(value)
+                ).execute();
         }
     });
 
@@ -104,7 +120,7 @@ export async function injectDanbooruTags() {
         for await (const tagImplication of readJsonLines<BQTagImplication>('./danbooru-data/tag_implications.jsonl')) {
             // console.log('tagImplication', tagImplication.id);
             if (tagImplication.status == 'active') {
-                await trx.insertInto('TagImplication').values({
+                const value: Insertable<TagImplication> = {
                     id: tagImplication.id,
     
                     forumPostId: tagImplication.forum_post_id,
@@ -112,15 +128,22 @@ export async function injectDanbooruTags() {
                     approverId: tagImplication.approver_id,
                     creatorId: tagImplication.creator_id,
     
-                    updatedAt: tagImplication.updated_at?.value,
-                    createdAt: tagImplication.created_at?.value,
+                    updatedAt: tagImplication.updated_at?.value ? new Date(tagImplication.updated_at?.value).getTime() : null,
+                    createdAt: tagImplication.created_at?.value ? new Date(tagImplication.created_at?.value).getTime() : null,
     
                     status: tagImplication.status,
                     reason: tagImplication.reason,
     
                     antecedentName: tagImplication.antecedent_name,
                     consequentName: tagImplication.consequent_name,
-                }).execute();
+                };
+                await trx
+                    .insertInto('TagImplication')
+                    .values(value)
+                    .onConflict(oc => oc
+                        .column('id')
+                        .doUpdateSet(value)
+                    ).execute();
             }
         }
     });
@@ -129,7 +152,7 @@ export async function injectDanbooruTags() {
     await db.transaction().execute(async trx => {
         for await (const wikiPage of readJsonLines<BQWikiPage>('./danbooru-data/wiki_pages.jsonl')) {
             // console.log('wikiPage', wikiPage.id);
-            await trx.insertInto('WikiPage').values({
+            const value: Insertable<WikiPage> = {
                 id: wikiPage.id,
 
                 title: wikiPage.title,
@@ -137,12 +160,20 @@ export async function injectDanbooruTags() {
 
                 otherNames: JSON.stringify(wikiPage.other_names ?? []),
 
-                isDeleted: wikiPage.is_deleted,
-                isLocked: wikiPage.is_locked,
+                isDeleted: wikiPage.is_deleted ? 1 : 0,
+                isLocked: wikiPage.is_locked ? 1 : 0,
 
-                updatedAt: wikiPage.updated_at?.value,
-                createdAt: wikiPage.created_at?.value,
-            }).execute();
+                updatedAt: wikiPage.updated_at?.value ? new Date(wikiPage.updated_at?.value).getTime() : null,
+                createdAt: wikiPage.created_at?.value ? new Date(wikiPage.created_at?.value).getTime() : null,
+            };
+
+            await trx
+                .insertInto('WikiPage')
+                .values(value)
+                .onConflict(oc => oc
+                    .column('id')
+                    .doUpdateSet(value)
+                ).execute();
         }
     });
 
@@ -169,7 +200,7 @@ export async function *getLabelValueDefinitions() {
     for (const tag of await db.selectFrom('Tag')
         .selectAll()
         .where(eb => eb.and([
-            eb('isDeprecated', '=', false),
+            eb('isDeprecated', '=', 0),
             eb('postCount', '>=', 10000),
             eb('category', '!=', TagCategory.Meta),
             eb('name', 'not in', [...ignoredTags])
@@ -305,8 +336,8 @@ function removeDtext(str: string): string {
         .replace(/"([^"]+?)":\[[/#].+?\]/g, '$1') // Link to a Danbooru page / Link to a specific section of the current page
         .replace(/\[\[.+?\|(.*?)\]\]/g, '$1') // Link to a wiki with custom text / Link to a wiki without the qualifier
         .replace(/\[\[([^\]]+?)(?:#.+?)?\]\]/g, '$1') // Link to a wiki / Link to a specific section of a wiki article
-        .replace(/\{\{([^\}]+?)\}\}/g, '$1') // Link to a tag search
-        .replace(/\{\{[^\|\}]+?\|(.*?)\}\}/g, '$1') // Link to a tag search with custom text
+        .replace(/\{\{([^}]+?)\}\}/g, '$1') // Link to a tag search
+        .replace(/\{\{[^|}]+?\|(.*?)\}\}/g, '$1') // Link to a tag search with custom text
         .replace(/^h[4-6]\.\s*/gm, '') // Headings
         .replace(/^\.\s*/gm, '') // undocumented?
     ;

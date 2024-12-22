@@ -59,10 +59,10 @@ model Label {
     uri String
     cid String?
     val String
-    /// @kyselyType(boolean)
+    /// @kyselyType(1 | 0)
     neg Boolean? @default(false)
-    cts DateTime
-    exp DateTime?
+    cts BigInt
+    exp BigInt?
     sig Bytes
 
     @@index(val)
@@ -71,16 +71,17 @@ model Label {
 model Tag {
     id Int @id
     name String? @unique
-    words String // string[]
-    /// @kyselyType(boolean)
+    words String? // string[]
+    /// @kyselyType(1 | 0)
     isDeprecated Boolean?
-    updatedAt DateTime?
-    createdAt DateTime?
+    updatedAt BigInt?
+    createdAt BigInt?
     category Int?
     postCount Int?
-    aliases TagAlias[]
-    impliedBy TagImplication[] @relation("impliedBy")
-    implies TagImplication[] @relation("implies")
+
+    // aliases TagAlias[]
+    // impliedBy TagImplication[] @relation("impliedBy")
+    // implies TagImplication[] @relation("implies")
     
     @@index(name)
 }
@@ -93,13 +94,13 @@ model WikiPage {
 
     otherNames String // string[]
 
-    /// @kyselyType(boolean)
+    /// @kyselyType(1 | 0)
     isDeleted Boolean?
-    /// @kyselyType(boolean)
+    /// @kyselyType(1 | 0)
     isLocked Boolean?
 
-    updatedAt DateTime?
-    createdAt DateTime?
+    updatedAt BigInt?
+    createdAt BigInt?
 
     @@index(title)
 }
@@ -112,8 +113,8 @@ model TagImplication {
     approverId Int?
     creatorId Int?
 
-    updatedAt DateTime?
-    createdAt DateTime?
+    updatedAt BigInt?
+    createdAt BigInt?
 
     status String?
     reason String?
@@ -121,8 +122,11 @@ model TagImplication {
     antecedentName String?
     consequentName String?
 
-    impliedBy Tag? @relation("impliedBy", fields: [consequentName], references: [name])
-    implies Tag? @relation("implies", fields: [antecedentName], references: [name])
+    // impliedBy Tag? @relation("impliedBy", fields: [consequentName], references: [name])
+    // implies Tag? @relation("implies", fields: [antecedentName], references: [name])
+
+    @@index(antecedentName)
+    @@index(consequentName)
 }
 
 model TagAlias {
@@ -133,8 +137,8 @@ model TagAlias {
     approverId Int?
     creatorId Int?
 
-    updatedAt DateTime?
-    createdAt DateTime?
+    updatedAt BigInt?
+    createdAt BigInt?
 
     status String?
     reason String?
@@ -142,9 +146,10 @@ model TagAlias {
     antecedentName String?
     consequentName String?
 
-    consequent Tag? @relation(fields: [consequentName], references: [name])
+    // consequent Tag? @relation(fields: [consequentName], references: [name])
 
     @@index(antecedentName)
+    @@index(consequentName)
 }
 
 datasource db {

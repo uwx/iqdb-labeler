@@ -19,3 +19,5 @@ bun.lockb
 /src/puzzle-scraper/edge/backend/PuzzleUser.pdb
 /.chissl-profile.yml
 *.db
+/db/main.db-shm
+/db/main.db-wal

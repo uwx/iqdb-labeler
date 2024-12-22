@@ -4,28 +4,50 @@ import type { SavedLabel, SignedLabel } from "#skyware/labeler";
 import toBuffer from 'typedarray-to-buffer';
 import { XRPCError } from "@atcute/client";
 import { At } from "@atcute/client/lexicons";
-import { sql } from "kysely";
+import { Selectable, sql } from "kysely";
+import { Label as DbLabel } from "../backend/db/types.js";
 
 export class KyselyDbProvider implements DbProvider {
 
     constructor() {
     }
 
+    private toSavedLabel(label: Selectable<DbLabel>): SavedLabel {
+        return {
+            id: label.id,
+            src: label.src as At.DID,
+            uri: label.uri,
+            cid: label.cid,
+            val: label.val,
+            neg: label.neg ? true : false,
+            cts: new Date(label.cts).toISOString(),
+            exp: label.exp ? new Date(label.exp).toISOString() : null,
+            sig: label.sig
+        }
+    }
+
     async queryLabels(identifier: string, cursor = 0, limit = 1): Promise<SavedLabel[]> {
-        return await db
+        return (await db
             .selectFrom('Label')
             .selectAll()
             .where(eb => eb.and([eb('val', '=', identifier), eb('id', '>', cursor)]))
             .orderBy('id asc')
             .limit(limit)
-            .execute() as SavedLabel[];
+            .execute()).map(e => this.toSavedLabel(e));
     }
 
     async saveLabel(label: SignedLabel): Promise<number> {
         const { src, uri, cid, val, neg, cts, exp, sig } = label;
 
         const results = await db.insertInto('Label').values({
-            src, uri, cid, val, neg, cts, exp, sig: toBuffer(sig)
+            src,
+            uri,
+            cid,
+            val,
+            neg: neg ? 1 : 0,
+            cts: new Date(cts).getTime(),
+            exp: exp ? new Date(exp).getTime() : null,
+            sig: toBuffer(sig)
         }).onConflict(oc => oc.doNothing()).execute();
 
         if (!results.length) throw new Error("Failed to insert label");
@@ -49,7 +71,7 @@ export class KyselyDbProvider implements DbProvider {
             return pattern.slice(0, -1) + "%";
         });
 
-        return await db
+        return (await db
             .selectFrom('Label')
             .selectAll()
             .where(eb => eb.and([
@@ -59,7 +81,7 @@ export class KyselyDbProvider implements DbProvider {
             ]))
             .orderBy('id asc')
             .limit(limit)
-            .execute() as Array<SavedLabel>;
+            .execute()).map(e => this.toSavedLabel(e));
     }
 
     async isCursorInTheFuture(cursor: number) {

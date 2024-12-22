@@ -3,8 +3,8 @@ import { type LoginCredentials, setLabelerLabelDefinitions } from '#skyware/labe
 import { BSKY_IDENTIFIER, BSKY_PASSWORD } from '../config.js';
 import { getLabelValueDefinitions, injectDanbooruTags } from '../labels/index.js';
 import logger from '../backend/logger.js';
-import { credentialManager } from '../session.js';
 import { arrayFromAsync } from '../utils.js';
+import { credentialManager } from '../backend/session.js';
 
 const loginCredentials: LoginCredentials = {
     identifier: BSKY_IDENTIFIER,
