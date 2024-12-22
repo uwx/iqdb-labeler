@@ -9,6 +9,6 @@
         "types": ["node"],
         "outDir": "bin",
     },
-    "include": ["src/**/*.ts"],
+    "include": ["src/**/*.ts", "src/utils/id128/src/common/byte-array.js"],
     "exclude": ["node_modules"]
 }

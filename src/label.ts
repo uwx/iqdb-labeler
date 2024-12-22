@@ -1,7 +1,3 @@
-import { AppBskyActorDefs, ComAtprotoLabelDefs } from '@atproto/api';
-import { LabelerServer } from './labeler/src/index.js';
-
-import { BSKY_IDENTIFIER, BSKY_PASSWORD, DID, SIGNING_KEY } from './config.js';
 // import { DELETE, LABELS, LABEL_LIMIT } from './constants.js';
 import logger from './logger.js';
 import { bot } from './bot.js';
@@ -10,8 +6,11 @@ import { AppBskyFeedPost } from '@atcute/client/lexicons';
 import { matchers } from './taggers/index.js';
 import { db } from './lmdb.js';
 import { Match } from './taggers/matcher.js';
-import { getLabelIdForTag } from './labels/index.js';
-import { getLabelerLabelDefinitions } from '@skyware/labeler/scripts';
+import { getLabelIdForTag, tags } from './labels/index.js';
+import { labelDefinitions } from './utils/label-definitions.js';
+import { inspect } from 'node:util';
+import { BACKEND_DOMAIN, FEEDS_DOMAIN } from './config.js';
+import { aesEncrypt } from './crypto.js';
 
 //labelerServer.app.addHook('onRequest', request => {
 //    console.log(`onRequest`, request);
@@ -19,14 +18,14 @@ import { getLabelerLabelDefinitions } from '@skyware/labeler/scripts';
 
 const matchesByUrl = db.table<string, Match>('matches', 'ordered-binary');
 
-const labelDefinitions = Object.fromEntries((await getLabelerLabelDefinitions({
-    identifier: BSKY_IDENTIFIER,
-    password: BSKY_PASSWORD,
-}))!.map(e => [e.identifier, e]));
-
 export async function labelPost(post: Post | (AppBskyFeedPost.Record & { uri: string, cid: string }) | string) {
     const uri = typeof post === 'string' ? post : post.uri;
     logger.info(`Trying to label ${uri}`);
+
+    if (!uri.includes('app.bsky.feed.post')) {
+        logger.warn(`Cannot label ${uri}: it's not a post`);
+        return;
+    }
 
     if (typeof post === 'string') {
         post = await bot.getPost(post);
@@ -48,16 +47,22 @@ export async function labelPost(post: Post | (AppBskyFeedPost.Record & { uri: st
         }
     }
 
+    if (images.length == 0) {
+        logger.debug('No images');
+        return;
+    }
+
     const labels = new Set<number>();
 
     for (const imageUrl of images) {
         let match = matchesByUrl.get(imageUrl);
+
         if (!match) {
-            for (const matcher of matchers) {
-                const matchCandidate = await matcher.getMatch(imageUrl);
+            for (const [matcher, matchCandidate] of await Promise.all(matchers.map(async matcher => [matcher, await matcher.getMatch(imageUrl)] as const))) {
                 if (matchCandidate) {
                     if ('error' in matchCandidate) {
-                        logger.error(`matcher ${matcher.constructor.name} error: ${matchCandidate.error}`);
+                        console.error(matchCandidate['error']);
+                        logger.error({error: inspect(matchCandidate['error'])}, `During ${imageUrl} matching for ${matcher.constructor.name}`)
                     } else {
                         matchesByUrl.put(imageUrl, matchCandidate);
                         match = matchCandidate;
@@ -82,9 +87,12 @@ export async function labelPost(post: Post | (AppBskyFeedPost.Record & { uri: st
     //});
 
     if (labels.size > 0) {
-        await addLabels(post.uri, [...labels].map(getLabelIdForTag)
-            .filter(e => e !== undefined)
-            .filter(e => e in labelDefinitions), post.cid);
+        await addLabels(post.uri, [...labels]
+            .map(id => tags.get(id))
+            .filter(tag => tag !== undefined)
+            .sort((a, b) => a.name?.localeCompare(b.name ?? '') ?? -1)
+            .map(tag => getLabelIdForTag(tag))
+            .filter(labelId => labelId in labelDefinitions), post.cid);
     } else {
         logger.info('No matches');
     }
@@ -147,13 +155,22 @@ async function addLabels(uri: string, identifiers: string[], cid: string) {
     logger.info(`New labels: ${identifiers.join(', ')}`);
 
     try {
-        await bot.label({
-            reference: { uri, cid },
-            labels: identifiers
+        const res = await fetch(`http://${BACKEND_DOMAIN}/label`, {
+            method: 'POST',
+            body: await aesEncrypt(JSON.stringify({
+                reference: { uri, cid },
+                labels: identifiers
+            }), { outString: true })
         });
+
+        if (!res.ok) {
+            throw new Error(`${res.status}: ${res.statusText}\n\n${await res.text()}`);
+        }
+
+        // logger.debug(await res.json());
 
         logger.info(`Successfully labeled ${uri} with ${identifiers.map(e => labelDefinitions[e].locales[0].name).join(', ')}`);
     } catch (error) {
-        logger.error(`Error adding new label: ${error}`);
+        logger.error(inspect(error), `Error adding new label: ${error}`);
     }
 }

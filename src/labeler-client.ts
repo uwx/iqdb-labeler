@@ -2,7 +2,7 @@ import { Jetstream } from '@skyware/jetstream';
 import fs from 'node:fs';
 import ws from 'ws';
 
-import { CURSOR_UPDATE_INTERVAL, FIREHOSE_URL } from './config.js';
+import { CURSOR_UPDATE_INTERVAL, DID, FIREHOSE_URL } from './config.js';
 import { labelPost } from './label.js';
 import logger from './logger.js';
 
@@ -65,7 +65,10 @@ jetstream.on('error', (error) => {
 });
 
 const followers = db.set<string>('followers');
+const likers = db.set<string>('likers');
 const followRecords = db.table<string, string>('follow-records', 'ordered-binary', 'string');
+const likeRecords = db.table<string, string>('like-records', 'ordered-binary', 'string');
+
 jetstream.onCreate('app.bsky.graph.follow', ({ commit: { record, rkey }, did }) => {
     // const uri = `at://${did}/app.bsky.graph.follow/${rkey}`;
     if (record.subject === bot.profile.did) {
@@ -86,8 +89,14 @@ jetstream.onDelete('app.bsky.graph.follow', ({ commit: { rkey }, did }) => {
     }
 });
 
-jetstream.onCreate('app.bsky.feed.like', async ({ commit: { record }, did }) => {
-    if (followers.has(did)) {
+jetstream.onCreate('app.bsky.feed.like', async ({ commit: { record, rkey }, did }) => {
+    if (record.subject.uri == `at://${DID}/app.bsky.labeler.service/self`) {
+        logger.debug(`Liked by ${did}`);
+        likers.add(did);
+        likeRecords.put(rkey, did);
+    }
+
+    if (followers.has(did) || likers.has(did)) {
         labelPost(record.subject.uri).catch((error: unknown) => {
             logger.error(`Unexpected error labeling ${record.subject.uri}: ${error}`);
             console.error(error);
@@ -97,6 +106,14 @@ jetstream.onCreate('app.bsky.feed.like', async ({ commit: { record }, did }) => 
         // label(event.did, event.commit.record.subject.uri.split('/').pop()!).catch((error: unknown) => {
         //     logger.error(`Unexpected error labeling ${event.did}: ${error}`);
         // });
+    }
+});
+
+jetstream.onDelete('app.bsky.feed.like', async ({ commit: { rkey }, did }) => {
+    if (likeRecords.doesExist(rkey)) {
+        logger.debug(`Un-liked by ${did}`);
+        likers.delete(did);
+        likeRecords.remove(rkey);
     }
 });
 

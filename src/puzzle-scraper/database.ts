@@ -2,9 +2,10 @@ import { encodeToBitArray, decodeFromBitArray, LuminosityLevel } from "./puzzle/
 import { generateSignature as phashGenerateSignature } from "./phash/index.js";
 import { loadAndGenerateSignature as puzzleGenerateSignature } from "./edge/puzzle-nativeaot.js";
 import sharp from 'sharp';
-import { PartialPost } from "./scrapers/types.js";
 import { readFile } from "node:fs/promises";
-import { LmdbWrapper } from "../lmdb-wrapper.js";
+import { LmdbWrapper } from "../utils/lmdb-wrapper.js";
+import bmp from "sharp-bmp";
+import { uint64ToUint8Array, uint8ArrayToUint64 } from "../utils/ints.js";
 
 const db = new LmdbWrapper('reverse-image-database', {
     keyEncoding: 'binary',
@@ -13,7 +14,7 @@ const db = new LmdbWrapper('reverse-image-database', {
 
 export const cursors = db.table<string, number>('cursors', 'ordered-binary', 'ordered-binary');
 
-export const posts = db.table<[id: number, service: string], PartialPost>('TEMP-POSTS', 'ordered-binary', 'msgpack');
+export const hashesReverse = db.table<[service: Service, id: number | string], [phash: Uint8Array, puzzle: Uint8Array]>('TEMP-HASHES-REVERSE', 'ordered-binary', 'msgpack');
 
 const valuesTable = db.table<[service: Service, id: number | string], ScraperEntry>('values', 'ordered-binary', 'msgpack');
 
@@ -25,61 +26,13 @@ const phashTable = db.table<Uint8Array, [service: Service, id: number | string]>
 // value: [Service, ID] index into valuesTable
 const puzzleTable = db.table<Uint8Array, [service: Service, id: number | string]>('puzzle', 'binary', 'ordered-binary');
 
-// https://stackoverflow.com/a/55646905
-function parseBigInt(value: string, radix: number) {
-    if (radix < 1 || radix > 36) throw new Error('Radix must be >= 1 <= 36')
-
-    const size = 10; // Number.MAX_SAFE_INTEGER is of length 11, so 10 is the most possible
-    const factor = BigInt(radix ** size);
-
-    let r = 0n;
-
-    {
-        const v = value.slice(0, value.length % size || size);
-        r = r * factor + BigInt(parseInt(v, radix));
-    }
-
-    for (let i = value.length % size || size; i < value.length; i += size) {
-        const v = value.slice(i, i += size);
-
-        r = r * factor + BigInt(parseInt(v, radix));
-    }
-
-    return r;
-}
-
-function ulidToUint8Array(value: string) {
-    let big = parseBigInt(value, 36);
-
-    const parts: bigint[] = [];
-    while (big > 0) {
-        parts.push(big & 0xFFFFFFFFFFFFFFFFn);
-        big >>= 64n;
-    }
-
-    return new Uint8Array(new BigUint64Array(parts).buffer);
-}
-
-// convert 32-bit sized positive number into uint8array containing an uint32
-function uint32ToUint8Array(value: number) {
-    const arr = new Uint32Array(1);
-    arr[0] = value;
-    return new Uint8Array(arr.buffer);
-}
-
-// convert 64-bit sized positive bigint into uint8array containing an uint64
-function uint64ToUint8Array(bigint: bigint) {
-    const arr = new BigUint64Array(1);
-    arr[0] = bigint;
-    return new Uint8Array(arr.buffer);
-}
-
-function uint8ArrayToUint64(arr: ArrayBuffer) {
-    return new BigUint64Array(arr)[0];
-}
-
 export const enum Service {
-    Danbooru, E621
+    Danbooru,
+    E621,
+    Konachan,
+    Rule34,
+    Yandere,
+    Gelbooru,
 }
 
 export interface ScraperEntry {
@@ -105,30 +58,11 @@ export interface PostEntry {
     toScraperEntry(): ScraperEntry;
 }
 
-export class DanbooruPostEntry {
-    readonly service = Service.Danbooru;
-
-    constructor(public readonly postId: number, public readonly md5?: string) {}
+export class IdPostEntry {
+    constructor(public readonly postId: number, public readonly md5?: string, public readonly service: Service) {}
 
     static fromScraperEntry(scraperEntry: ScraperEntry) {
-        return new this(+scraperEntry.i);
-    }
-
-    toScraperEntry(): ScraperEntry {
-        return {
-            s: this.service,
-            i: this.postId,
-            ...(this.md5 ? { m: this.md5 } : {})
-        };
-    }
-}
-export class E6PostEntry {
-    readonly service = Service.E621;
-
-    constructor(public readonly postId: number, public readonly md5?: string) {}
-
-    static fromScraperEntry(scraperEntry: ScraperEntry) {
-        return new this(+scraperEntry.i);
+        return new this(+scraperEntry.i, scraperEntry.m, scraperEntry.s);
     }
 
     toScraperEntry(): ScraperEntry {
@@ -159,23 +93,30 @@ export async function addEntry(input: string
     | Float32Array
     | Float64Array,
     value: PostEntry
-) {
-    const img = sharp(input, { failOnError: false });
+): Promise<[key: [service: Service, postId: string | number], puzzleSigArray: Uint8Array, phashSigArray: Uint8Array]> {
+    const img = typeof input !== 'string' && isBmp(input)
+        ? (bmp.sharpFromBmp(Buffer.from(input as ArrayBuffer), { failOnError: false }) as sharp.Sharp)
+        : sharp(input, { failOnError: false });
 
     const uid = value.postId;
 
     const [puzzleSignature, phashSignature] = await Promise.all([
-        puzzleGenerateSignature(typeof input === 'string' ? await readFile(input) : input),
+        puzzleGenerateSignature(typeof input === 'string' ? await readFile(input) : new Uint8Array(input)),
         phashGenerateSignature(img)
     ]);
 
+    const puzzleSigArray = new Uint8Array(encodeToBitArray(puzzleSignature));
+    const phashSigArray = uint64ToUint8Array(phashSignature);
+
     await db.transaction(() => {
         valuesTable.put([value.service, uid], value.toScraperEntry());
-        puzzleTable.put(new Uint8Array(encodeToBitArray(puzzleSignature)), [value.service, uid]);
-        phashTable.put(uint64ToUint8Array(phashSignature), [value.service, uid]);
+        puzzleTable.put(puzzleSigArray, [value.service, uid]);
+        phashTable.put(phashSigArray, [value.service, uid]);
+
+        hashesReverse.put([value.service, uid], [phashSigArray, puzzleSigArray]);
     });
 
-    return [value.service, uid];
+    return [[value.service, uid], puzzleSigArray, phashSigArray];
 }
 
 export function *iteratePuzzleHashes(): Generator<[hash: LuminosityLevel[], key: [service: Service, id: string | number]]> {
@@ -198,3 +139,12 @@ export function *iteratePHashHashes(): Generator<[hash: bigint, key: [service: S
 export function getEntry(key: [service: Service, id: string | number]) {
     return valuesTable.get(key);
 }
+
+function isBmp(buf: Buffer | ArrayBuffer | Uint8Array | Uint8ClampedArray | Int8Array | Uint16Array | Int16Array | Uint32Array | Int32Array | Float32Array | Float64Array) {
+    buf = new Uint8Array(buf);
+    if (buf[0] == 0x42 && buf[1] == 0x4D) {
+        return true;
+    }
+    return false;
+}
+

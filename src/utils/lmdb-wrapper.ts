@@ -1,16 +1,21 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { rename } from 'fs/promises';
-import { Database, Key, open, RootDatabase, RootDatabaseOptions, Transaction, TransactionFlags } from 'lmdb';
+import { Database, DatabaseOptions, Key, open, RootDatabase, RootDatabaseOptions, Transaction, TransactionFlags } from 'lmdb';
+import logger from '../logger.js';
 
 const sharedStructuresKey = Symbol.for('structures');
 
 export class LmdbWrapper {
     private db_: RootDatabase<any, Key>;
     constructor(private readonly name: string, private readonly options: Partial<RootDatabaseOptions> = {}) {
+        logger.debug('Opening DB');
         this.db_ = this.openDb();
+        logger.debug('Opened DB');
 
         process.on('beforeExit', () => {
+            logger.debug('Closing DB');
             this.db.close();
+            logger.debug('Closed DB');
         });
     }
 
@@ -42,16 +47,22 @@ export class LmdbWrapper {
         return this.db.transaction(action);
     }
 
+    batch(action: () => any): Promise<boolean> {
+        return this.db.batch(action);
+    }
+
     // string values
     table(
         name: string,
         keyEncoding: 'uint32',
         encoding: 'string',
+        opts?: DatabaseOptions,
     ): Database<string, number>;
     table(
         name: string,
         keyEncoding: 'binary',
         encoding: 'string',
+        opts?: DatabaseOptions,
     ): Database<string, Uint8Array>;
 
     // uint32 keys. 4_294_967_295 is reserved for shared structures
@@ -59,6 +70,7 @@ export class LmdbWrapper {
         name: string,
         keyEncoding: 'uint32',
         encoding?: 'msgpack' | 'json' | 'string' | 'binary' | 'ordered-binary',
+        opts?: DatabaseOptions,
     ): Database<V, number>;
 
     // arraybuffer keys
@@ -66,6 +78,7 @@ export class LmdbWrapper {
         name: string,
         keyEncoding: 'binary',
         encoding?: 'msgpack' | 'json' | 'string' | 'binary' | 'ordered-binary',
+        opts?: DatabaseOptions,
     ): Database<V, Uint8Array>;
 
     // arbitrary keys
@@ -73,6 +86,7 @@ export class LmdbWrapper {
         name: string,
         keyEncoding: 'ordered-binary',
         encoding?: 'msgpack' | 'json' | 'string' | 'binary' | 'ordered-binary',
+        opts?: DatabaseOptions,
     ): Database<V, Key>;
 
     // fallback
@@ -80,19 +94,23 @@ export class LmdbWrapper {
         name: string,
         keyEncoding?: 'uint32' | 'binary' | 'ordered-binary',
         encoding?: 'msgpack' | 'json' | 'string' | 'binary' | 'ordered-binary',
+        opts?: DatabaseOptions,
     ): Database<V, K>;
 
     table<K extends Key, V>(
         name: string,
         keyEncoding: 'uint32' | 'binary' | 'ordered-binary' = 'ordered-binary',
         encoding: 'msgpack' | 'json' | 'string' | 'binary' | 'ordered-binary' = 'msgpack',
+        opts?: DatabaseOptions,
     ): Database<V, K> {
         return this.db.openDB(name, {
             compression: true,
             sharedStructuresKey: keyEncoding == 'uint32' ? 4_294_967_295 : sharedStructuresKey,
 
             keyEncoding,
-            encoding
+            encoding,
+
+            ...opts,
         });
     }
 
