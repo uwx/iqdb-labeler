@@ -376,21 +376,20 @@ function removeDtext(str: string): string {
 
     return str
         .replace(/\[\/?(?:[bius]|tn|spoilers|nodtext|code|br|url|table|thead|tbody|tr|col|colgroup|th|td|expand|quote|hr)\]/g, '') // Basic formatting
-        .replace(/\[expand=(.+?)\]/g, '') // Use [expand=Custom title] to add a custom title:
-        .replace(/\[(th|tr|td|thead|tbody|col)(\s+(align|span|colspan|rowspan)="(.+?)")*\s*\]/g, '') // optional table element attributes
+        .replace(/\[expand=[^\]]+\]/g, '') // Use [expand=Custom title] to add a custom title:
+        .replace(/\[(th|tr|td|thead|tbody|col)(\s+(align|span|colspan|rowspan)="[^"]*")*\s*\]/g, '') // optional table element attributes
         .replace(/<\/?(?:b|strong|i|em|u|s|tn|spoiler|nodtext|code|br|hr|quote|expand|table|thead|tbody|tr|col|colgroup|th|td)>/g, '')
         .replace(new RegExp('<(' + urlRegex + ')>', 'g'), '$1') // Basic link with delimiters
         .replace(new RegExp(String.raw`"([^"]*)":\[` + urlRegex + String.raw`\]`, 'g'), '$1') // Link with custom text
         .replace(new RegExp(String.raw`\[([^\]*])\]\(` + urlRegex + String.raw`\)`, 'g'), '$1') // Markdown style link
         .replace(new RegExp(String.raw`\(` + urlRegex + String.raw`\)\[([^\]*])\]`, 'g'), '$1') // Reverse markdown style link
-        .replace(/<a href="(?:.*?)">(.+?)<\/a>/g, '$1') // HTML style link
-        .replace(/\[url=(?:.*?)\](.+?)\[\/url\]/g, '$1') // BBCode style link with custom text
-        .replace(/"(.+?)":\[\/(?:.+?)\]/g, '$1') // Link to a Danbooru page
-        .replace(/"(.+?)":\[#(?:.+?)\]/g, '$1') // Link to a specific section of the current page
-        .replace(/\[\[(?:.+?)\|(.*?)\]\]/g, '$1') // Link to a wiki with custom text / Link to a wiki without the qualifier
-        .replace(/\[\[(.+?)(?:#.+?)?\]\]/g, '$1') // Link to a wiki / Link to a specific section of a wiki article
-        .replace(/\{\{(.+?)\}\}/g, '$1') // Link to a tag search
-        .replace(/\{\{(?:.+?)\|(.*?)\}\}/g, '$1') // Link to a tag search with custom text
+        .replace(/<a href=".*?">(.+?)<\/a>/g, '$1') // HTML style link
+        .replace(/\[url=.*?\](.+?)\[\/url\]/g, '$1') // BBCode style link with custom text
+        .replace(/"([^"]+?)":\[[\/#].+?\]/g, '$1') // Link to a Danbooru page / Link to a specific section of the current page
+        .replace(/\[\[.+?\|(.*?)\]\]/g, '$1') // Link to a wiki with custom text / Link to a wiki without the qualifier
+        .replace(/\[\[([^\]]+?)(?:#.+?)?\]\]/g, '$1') // Link to a wiki / Link to a specific section of a wiki article
+        .replace(/\{\{([^\}]+?)\}\}/g, '$1') // Link to a tag search
+        .replace(/\{\{[^\|\}]+?\|(.*?)\}\}/g, '$1') // Link to a tag search with custom text
         .replace(/^h[4-6]\.\s*/gm, '') // Headings
         .replace(/^\.\s*/gm, '') // undocumented?
     ;
