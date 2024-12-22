@@ -4,9 +4,12 @@
 [submodule "extern/TorchDeepDanbooru"]
 	path = extern/TorchDeepDanbooru
 	url = https://github.com/AUTOMATIC1111/TorchDeepDanbooru
-[submodule "src/labeler"]
-	path = src/labeler
-	url = https://github.com/deliciously-default/labeler
 [submodule "src/taggers/iqdb/iqdb-client"]
 	path = src/taggers/iqdb/iqdb-client
 	url = https://github.com/KotoriK/iqdb-client
+[submodule "src/@skyware/bot"]
+	path = src/@skyware/bot
+	url = https://github.com/deliciously-default/bot
+[submodule "src/@skyware/labeler"]
+	path = src/@skyware/labeler
+	url = https://github.com/deliciously-default/labeler
