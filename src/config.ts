@@ -1,6 +1,7 @@
+import { At } from '@atcute/client/lexicons';
 import 'dotenv/config';
 
-export const DID = process.env.DID ?? '';
+export const DID = process.env.DID as At.DID ?? '';
 export const SIGNING_KEY = process.env.SIGNING_KEY ?? '';
 export const PORT = process.env.PORT ? Number(process.env.PORT) : 4002;
 export const METRICS_PORT = process.env.METRICS_PORT ? Number(process.env.METRICS_PORT) : 4102;

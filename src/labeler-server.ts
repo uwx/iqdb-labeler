@@ -9,7 +9,6 @@ import { aesDecrypt } from './backend/crypto.js';
 import { BotLabelRecordOptions } from '#skyware/bot';
 import { fastifyWebsocket } from "@fastify/websocket";
 import { LmdbDbProvider } from './utils/lmdb-skyware-db-provider.js';
-import { db } from './backend/lmdb.js';
 
 const app = fastify({
     logger: logger as FastifyBaseLogger

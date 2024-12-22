@@ -8,7 +8,18 @@
         "esModuleInterop": true,
         "types": ["node", "bun"],
         "outDir": "bin",
+        "paths": { // for bun
+            "#skyware/bot": ["./src/@skyware/bot/src/index.js"],
+            "#skyware/labeler": ["./src/@skyware/labeler/src/index.js"],
+            "#skyware/bot/*": ["./src/@skyware/bot/src/*"],
+            "#skyware/labeler/*": ["./src/@skyware/labeler/src/*"]
+        },
+        "experimentalDecorators": true
     },
-    "include": ["src/**/*.ts", "src/utils/id128/src/common/byte-array.js"],
-    "exclude": ["node_modules"]
+    "include": ["src/**/*.ts", "src/utils/id128/src/common/byte-array.js", "drizzle.config.ts"],
+    "exclude": ["node_modules"],
+    "ts-node": {
+        "esm": true,
+        "transpileOnly": true
+    }
 }

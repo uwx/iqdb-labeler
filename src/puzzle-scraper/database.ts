@@ -7,31 +7,31 @@ import { LmdbWrapper } from "../utils/lmdb-wrapper.js";
 import bmp from "sharp-bmp";
 import { uint64ToUint8Array, uint8ArrayToUint64 } from "../utils/ints.js";
 
-const db = new LmdbWrapper('reverse-image-database', {
+const riDb = new LmdbWrapper('reverse-image-database', {
     keyEncoding: 'binary',
     encoding: 'binary',
 });
 
-export const cursors = db.table<string, number>('cursors', 'ordered-binary', 'ordered-binary');
+export const cursors = riDb.table<string, number>('cursors', 'ordered-binary', 'ordered-binary');
 
-export const hashesReverse = db.table<[service: Service, id: number | string], [phash: Uint8Array, puzzle: Uint8Array]>('TEMP-HASHES-REVERSE', 'ordered-binary', 'msgpack');
+export const hashesReverse = riDb.table<[service: Service, id: number | string], [phash: Uint8Array, puzzle: Uint8Array]>('TEMP-HASHES-REVERSE', 'ordered-binary', 'msgpack');
 
-const valuesTable = db.table<[service: Service, id: number | string], ScraperEntry>('values', 'ordered-binary', 'msgpack');
+const valuesTable = riDb.table<[service: Service, id: number | string], ScraperEntry>('values', 'ordered-binary', 'msgpack');
 
 // key: single int64 containing an 8x8 similarity bit table
 // value: [Service, ID] index into valuesTable
-const phashTable = db.table<Uint8Array, [service: Service, id: number | string]>('phash', 'binary', 'ordered-binary');
+const phashTable = riDb.table<Uint8Array, [service: Service, id: number | string]>('phash', 'binary', 'ordered-binary');
 
 // key: uint8 array of 2-bit encoded values, of length ((gridSize * gridSize * 8) / 4), default gridSize is 9
 // value: [Service, ID] index into valuesTable
-const puzzleTable = db.table<Uint8Array, [service: Service, id: number | string]>('puzzle', 'binary', 'ordered-binary');
+const puzzleTable = riDb.table<Uint8Array, [service: Service, id: number | string]>('puzzle', 'binary', 'ordered-binary');
 
 // temp
 import { PartialPost } from "../utils/booru-client/types.js";
-export const postsDb = db.table<[service: Service, id: number | string], PartialPost>('TEMP-POSTS', 'ordered-binary', 'msgpack');
-export const errorsDb = db.table<[service: Service, id: number | string], string>('TEMP-ERRORS', 'ordered-binary', 'msgpack');
+export const postsDb = riDb.table<[service: Service, id: number | string], PartialPost>('TEMP-POSTS', 'ordered-binary', 'msgpack');
+export const errorsDb = riDb.table<[service: Service, id: number | string], string>('TEMP-ERRORS', 'ordered-binary', 'msgpack');
 
-export const enum Service {
+export enum Service {
     Danbooru,
     E621,
     Konachan,
@@ -113,7 +113,7 @@ export async function addEntry(input: string
     const puzzleSigArray = new Uint8Array(encodeToBitArray(puzzleSignature));
     const phashSigArray = uint64ToUint8Array(phashSignature);
 
-    await db.transaction(() => {
+    await riDb.transaction(() => {
         valuesTable.put([value.service, uid], value.toScraperEntry());
         puzzleTable.put(puzzleSigArray, [value.service, uid]);
         phashTable.put(phashSigArray, [value.service, uid]);

@@ -4,19 +4,19 @@ import { bot } from './bot.js';
 import { Post } from '#skyware/bot';
 import { AppBskyFeedPost } from '@atcute/client/lexicons';
 import { matchers } from '../taggers/index.js';
-import { db } from './lmdb.js';
 import { Match } from '../taggers/matcher.js';
 import { getLabelIdForTag, tags } from '../labels/index.js';
 import { labelDefinitions } from '../utils/label-definitions.js';
 import { inspect } from 'node:util';
 import { BACKEND_DOMAIN } from '../config.js';
 import { aesEncrypt } from './crypto.js';
+import { db, takeUniqueOrThrow } from './db.js';
+import { eq } from 'drizzle-orm';
+import { matchesByUrl } from './schema.js';
 
 //labelerServer.app.addHook('onRequest', request => {
 //    console.log(`onRequest`, request);
 //})
-
-const matchesByUrl = db.table<string, Match>('matches', 'ordered-binary');
 
 export async function labelPost(post: Post | (AppBskyFeedPost.Record & { uri: string, cid: string }) | string) {
     const uri = typeof post === 'string' ? post : post.uri;
@@ -55,7 +55,11 @@ export async function labelPost(post: Post | (AppBskyFeedPost.Record & { uri: st
     const labels = new Set<number>();
 
     for (const imageUrl of images) {
-        let match = matchesByUrl.get(imageUrl);
+        let match = await db
+            .select()
+            .from(matchesByUrl)
+            .where(eq(matchesByUrl.url, imageUrl))
+            .then(takeUniqueOrThrow);
 
         if (!match) {
             for (const [matcher, matchCandidate] of await Promise.all(matchers.map(async matcher => [matcher, await matcher.getMatch(imageUrl)] as const))) {
@@ -64,15 +68,37 @@ export async function labelPost(post: Post | (AppBskyFeedPost.Record & { uri: st
                         console.error(matchCandidate['error']);
                         logger.error({error: inspect(matchCandidate['error'])}, `During ${imageUrl} matching for ${matcher.constructor.name}`)
                     } else {
-                        matchesByUrl.put(imageUrl, matchCandidate);
-                        match = matchCandidate;
+                        match = {
+                            url: imageUrl,
+
+                            similarity: matchCandidate.similarity,
+
+                            md5: matchCandidate.md5 ?? null,
+                            sha1: matchCandidate.sha1 ?? null,
+                            sha256: matchCandidate.sha256 ?? null,
+                            rating: matchCandidate.rating ?? null,
+                            sourceUrl: matchCandidate.sourceUrl ?? null,
+                            pixivId: matchCandidate.pixivId ?? null,
+                            fileSize: matchCandidate.fileSize ?? null,
+
+                            tags: matchCandidate.tags,
+                        };
+
+                        await db
+                            .insert(matchesByUrl)
+                            .values(match)
+                            .onConflictDoUpdate({
+                                target: matchesByUrl.url,
+                                set: match
+                            });
+                        
                         break;
                     }
                 }
             }
         }
 
-        if (match) {
+        if (match?.tags?.length) {
             for (const tagId of match.tags) {
                 labels.add(tagId);
             }

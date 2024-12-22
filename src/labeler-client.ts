@@ -9,10 +9,12 @@ import logger from './backend/logger.js';
 import { bot } from './backend/bot.js';
 import { access, readFile } from 'node:fs/promises';
 import { getDbConfigItem, setDbConfigItem } from './utils/db-config.js';
-import { db } from './backend/lmdb.js';
+import { db, takeUniqueOrUndefined } from './backend/db.js';
+import { followers, likers } from './backend/schema.js';
+import { eq } from 'drizzle-orm';
 
 let cursor = 0;
-let cursorUpdateInterval: NodeJS.Timeout;
+let cursorUpdateInterval: NodeJS.Timeout | Timer;
 
 function epochUsToDateTime(cursor: number): string {
     return new Date(cursor / 1000).toISOString();
@@ -42,7 +44,7 @@ const jetstream = new Jetstream({
     ],
     endpoint: FIREHOSE_URL,
     cursor: cursor,
-    ws: ws
+    ws: typeof Bun === 'undefined' ? ws : undefined
 });
 
 jetstream.on('open', () => {
@@ -64,39 +66,34 @@ jetstream.on('error', (error) => {
     logger.error(`Jetstream error: ${error.message}`);
 });
 
-const followers = db.set<string>('followers');
-const likers = db.set<string>('likers');
-const followRecords = db.table<string, string>('follow-records', 'ordered-binary', 'string');
-const likeRecords = db.table<string, string>('like-records', 'ordered-binary', 'string');
-
-jetstream.onCreate('app.bsky.graph.follow', ({ commit: { record, rkey }, did }) => {
+jetstream.onCreate('app.bsky.graph.follow', async ({ commit: { record, rkey }, did }) => {
     // const uri = `at://${did}/app.bsky.graph.follow/${rkey}`;
     if (record.subject === bot.profile.did) {
         logger.debug(`Followed by ${did}`);
-        followers.add(did);
-        followRecords.put(rkey, did);
+        await db.insert(followers).values({rkey, did}).onConflictDoNothing();
 
         // this.emit("follow", { user: await bot.getProfile(did), uri });
     }
 });
 
 // is this the only way to find out if the follow record is for myself?
-jetstream.onDelete('app.bsky.graph.follow', ({ commit: { rkey }, did }) => {
-    if (followRecords.doesExist(rkey)) {
+jetstream.onDelete('app.bsky.graph.follow', async ({ commit: { rkey }, did }) => {
+    const res = await db.delete(followers).where(eq(followers.rkey, rkey));
+    if (res.rowsAffected > 0) {
         logger.debug(`Unfollowed by ${did}`);
-        followers.delete(did);
-        followRecords.remove(rkey);
     }
 });
 
 jetstream.onCreate('app.bsky.feed.like', async ({ commit: { record, rkey }, did }) => {
     if (record.subject.uri == `at://${DID}/app.bsky.labeler.service/self`) {
         logger.debug(`Liked by ${did}`);
-        likers.add(did);
-        likeRecords.put(rkey, did);
+        await db.insert(likers).values({rkey, did}).onConflictDoNothing();
     }
 
-    if (followers.has(did) || likers.has(did)) {
+    if (
+        await db.select({}).from(followers).where(eq(followers.did, did)).then(takeUniqueOrUndefined) ||
+        await db.select({}).from(likers).where(eq(likers.did, did)).then(takeUniqueOrUndefined)
+    ) {
         labelPost(record.subject.uri).catch((error: unknown) => {
             logger.error(`Unexpected error labeling ${record.subject.uri}: ${error}`);
             console.error(error);
@@ -110,10 +107,9 @@ jetstream.onCreate('app.bsky.feed.like', async ({ commit: { record, rkey }, did 
 });
 
 jetstream.onDelete('app.bsky.feed.like', async ({ commit: { rkey }, did }) => {
-    if (likeRecords.doesExist(rkey)) {
+    const res = await db.delete(likers).where(eq(likers.rkey, rkey));
+    if (res.rowsAffected > 0) {
         logger.debug(`Un-liked by ${did}`);
-        likers.delete(did);
-        likeRecords.remove(rkey);
     }
 });
 
@@ -123,7 +119,7 @@ jetstream.onCreate('app.bsky.feed.post', async (event) => {
 
     const uri = `at://${did}/app.bsky.feed.post/${rkey}`;
 
-    if (followers.has(did)) {
+    if (await db.select({}).from(followers).where(eq(followers.did, did)).then(takeUniqueOrUndefined)) {
         labelPost(await bot.getPost(uri)).catch((error: unknown) => {
             logger.error(`Unexpected error labeling ${uri}: ${error}`);
         });
@@ -136,6 +132,8 @@ jetstream.onCreate('app.bsky.feed.post', async (event) => {
 });
 
 jetstream.start();
+if (typeof Bun !== 'undefined')
+    jetstream.ws!.binaryType = 'arraybuffer';
 
 function shutdown() {
     try {

@@ -8,16 +8,16 @@ const sharedStructuresKey = Symbol.for('structures');
 export class LmdbWrapper {
     private db_: RootDatabase<any, Key>;
     constructor(private readonly name: string, private readonly options: Partial<RootDatabaseOptions> = {}) {
-        logger.debug('Opening DB');
+        logger.debug(`Opening DB ${name}`);
         this.db_ = this.openDb();
-        logger.debug('Opened DB');
+        logger.debug(`Opened DB ${name}`);
 
         const self = this;
         function beforeExit() {
             process.off('beforeExit', beforeExit);
-            logger.debug('Closing DB');
+            logger.debug(`Closing DB ${name}`);
             self.db?.close();
-            logger.debug('Closed DB');
+            logger.debug(`Closed DB ${name}`);
         }
 
         process.on('beforeExit', beforeExit);

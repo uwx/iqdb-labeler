@@ -1,15 +1,15 @@
 import { AtpSessionData, CredentialManager, XRPCError } from "@atcute/client";
-import { ComAtprotoServerCreateSession, ComAtprotoServerGetSession } from "@atcute/client/lexicons";
+import { At, ComAtprotoServerCreateSession, ComAtprotoServerGetSession } from "@atcute/client/lexicons";
 import { BotLoginOptions } from "#skyware/bot";
-import { db } from "./lmdb.js";
 import { BSKY_IDENTIFIER, BSKY_PASSWORD, DID } from "../config.js";
 import logger from "./logger.js";
+import { config } from "../utils/configs.js";
 
 export const credentialManager = new CredentialManager({ service: "https://bsky.social" });
 
-const sessions = db.table<string, AtpSessionData>('sessions', 'ordered-binary', 'msgpack');
+const sessions = config.subconfig<Record<At.DID, AtpSessionData>>('sessions');
 
-const existingSession = sessions.get(DID);
+const existingSession = await sessions.get(DID);
 if (existingSession != undefined) {
     try {
         logger.info(`Attempting to resume session for ${BSKY_IDENTIFIER}.`);
@@ -46,10 +46,10 @@ if (existingSession != undefined) {
 
 async function saveSession() {
     if (credentialManager.session) {
-        sessions.put(DID, credentialManager.session);
+        await sessions.set(DID, credentialManager.session);
         logger.debug(`Saved session for ${BSKY_IDENTIFIER}.`);
     } else {
-        sessions.remove(DID);
+        await sessions.remove(DID);
     }
 }
 
