@@ -171,7 +171,7 @@ jetstream.onCreate('app.bsky.feed.post', async (event) => {
         trackedUsers.likers.find(e => e.did === did) ||
         trackedUsers.followers.find(e => e.did === did)
     ) {
-        labelPost(await bot.getPost(uri)).catch((error: unknown) => {
+        bot.getPost(uri).then(post => labelPost(post)).catch((error: unknown) => {
             logger.error(`Unexpected error labeling ${uri}: ${error}`);
         });
 
