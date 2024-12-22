@@ -20,6 +20,41 @@ function epochUsToDateTime(cursor: number): string {
 
 const trackedUsers = await config.get('trackedUsers') ?? {followers: [], likers: []};
 
+logger.info('Trying to track missing follows...');
+{
+    const { data: { followers } } = await bot.agent.get('app.bsky.graph.getFollowers', {
+        params: {
+            actor: DID,
+            limit: 100,
+        }
+    });
+
+    const { data: { likes } } = await bot.agent.get('app.bsky.feed.getLikes', {
+        params: {
+            uri: `at://${DID}/app.bsky.labeler.service/self`,
+            limit: 100,
+        }
+    });
+
+    for (const follower of followers) {
+        if (!trackedUsers.followers.find(e => e.did == follower.did)) {
+            trackedUsers.followers.push({
+                rkey: null,
+                did: follower.did,
+            })
+        }
+    }
+
+    for (const liker of likes) {
+        if (!trackedUsers.likers.find(e => e.did == liker.actor.did)) {
+            trackedUsers.likers.push({
+                rkey: null,
+                did: liker.actor.did,
+            })
+        }
+    }
+}
+
 logger.info('Trying to read cursor from database...');
 cursor = await config.get('jetstreamCursor') ?? 0;
 if (!cursor) {
@@ -35,6 +70,7 @@ const jetstream = new Jetstream({
         'app.bsky.feed.post',
         'app.bsky.graph.follow',
         'app.bsky.feed.like',
+        'app.bsky.feed.repost',
     ],
     endpoint: FIREHOSE_URL,
     cursor: cursor,
@@ -90,6 +126,8 @@ jetstream.onCreate('app.bsky.feed.like', async ({ commit: { record, rkey }, did 
             trackedUsers.likers.push({rkey, did});
             await config.set('trackedUsers', trackedUsers);
         }
+
+        return;
     }
 
     if (
@@ -100,11 +138,6 @@ jetstream.onCreate('app.bsky.feed.like', async ({ commit: { record, rkey }, did 
             logger.error(`Unexpected error labeling ${record.subject.uri}: ${error}`);
             console.error(error);
         });
-
-        // event.commit.record.subject.uri
-        // label(event.did, event.commit.record.subject.uri.split('/').pop()!).catch((error: unknown) => {
-        //     logger.error(`Unexpected error labeling ${event.did}: ${error}`);
-        // });
     }
 });
 
@@ -115,6 +148,18 @@ jetstream.onDelete('app.bsky.feed.like', async ({ commit: { rkey }, did }) => {
         await config.set('trackedUsers', trackedUsers);
     }
 });
+
+jetstream.onCreate('app.bsky.feed.repost', ({ commit: { record, rkey }, did }) => {
+    if (
+        trackedUsers.likers.find(e => e.did === did) ||
+        trackedUsers.followers.find(e => e.did === did)
+    ) {
+        labelPost(record.subject.uri).catch((error: unknown) => {
+            logger.error(`Unexpected error labeling ${record.subject.uri}: ${error}`);
+            console.error(error);
+        });
+    }
+})
 
 jetstream.onCreate('app.bsky.feed.post', async (event) => {
     const { commit, did } = event;
