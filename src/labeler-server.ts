@@ -3,7 +3,7 @@ import { DID, METRICS_PORT, PORT, SIGNING_KEY } from './config.js';
 import { LabelerServer } from './labeler/src/index.js';
 import logger from './logger.js';
 
-export const labelerServer = new LabelerServer({ did: DID, signingKey: SIGNING_KEY });
+export const labelerServer = new LabelerServer({ did: DID, signingKey: SIGNING_KEY, logger });
 
 const metricsServer = startMetricsServer(METRICS_PORT);
 
