@@ -6,7 +6,9 @@
         "moduleResolution": "NodeNext",
         "allowSyntheticDefaultImports": true,
         "esModuleInterop": true,
-        "types": ["node"]
+        "types": ["node"],
+        "outDir": "bin",
     },
+    "include": ["src/**/*.ts"],
     "exclude": ["node_modules"]
 }

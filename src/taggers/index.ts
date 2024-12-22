@@ -1,6 +1,8 @@
-import { IqdbMatcher } from "./iqdb.js";
+// import { DeepDanbooruMatcher } from "./deep-danbooru/index.js";
+import { IqdbMatcher } from "./iqdb/index.js";
 import { Matcher } from "./matcher.js";
 
 export const matchers: Matcher[] = [
-    new IqdbMatcher()
+    new IqdbMatcher(),
+    // new DeepDanbooruMatcher()
 ];

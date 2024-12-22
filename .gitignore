@@ -8,3 +8,12 @@ bun.lockb
 /danbooru-data
 /msgpackr-shared-structures.mp
 /database
+.plc-token
+.labeler-keys
+/extern/model-resnet_custom_v3.pt
+/extern/deepdanbooru-v3-20211112-sgd-e28
+/reverse-image-database
+/src/puzzle-scraper/edge/backend/Puzzle.pdb
+/src/puzzle-scraper/edge/backend/Puzzle.xml
+/src/puzzle-scraper/edge/backend/PuzzleUser.dll
+/src/puzzle-scraper/edge/backend/PuzzleUser.pdb

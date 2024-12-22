@@ -1,7 +1,7 @@
 import { AppBskyActorDefs, ComAtprotoLabelDefs } from '@atproto/api';
-import { LabelerServer } from '@skyware/labeler';
+import { LabelerServer } from './labeler/src/index.js';
 
-import { DID, SIGNING_KEY } from './config.js';
+import { BSKY_IDENTIFIER, BSKY_PASSWORD, DID, SIGNING_KEY } from './config.js';
 // import { DELETE, LABELS, LABEL_LIMIT } from './constants.js';
 import logger from './logger.js';
 import { bot } from './bot.js';
@@ -11,16 +11,26 @@ import { matchers } from './taggers/index.js';
 import { table } from './lmdb.js';
 import { Match } from './taggers/matcher.js';
 import { getLabelIdForTag } from './labels/index.js';
+import { getLabelerLabelDefinitions } from '@skyware/labeler/scripts';
 
-export const labelerServer = new LabelerServer({ did: DID, signingKey: SIGNING_KEY });
+//labelerServer.app.addHook('onRequest', request => {
+//    console.log(`onRequest`, request);
+//})
 
 const matchesByUrl = table<string, Match>('matches', 'ordered-binary');
 
-export async function labelPost(post: Post | (AppBskyFeedPost.Record & { uri: string }) | string) {
-    const uri = typeof post === 'string' ? post : post.uri;
+const labelDefinitions = Object.fromEntries((await getLabelerLabelDefinitions({
+    identifier: BSKY_IDENTIFIER,
+    password: BSKY_PASSWORD,
+}))!.map(e => [e.identifier, e]));
 
-    if (typeof post === 'string')
+export async function labelPost(post: Post | (AppBskyFeedPost.Record & { uri: string, cid: string }) | string) {
+    const uri = typeof post === 'string' ? post : post.uri;
+    logger.info(`Trying to label ${uri}`);
+
+    if (typeof post === 'string') {
         post = await bot.getPost(post);
+    }
 
     const images: string[] = [];
 
@@ -64,7 +74,20 @@ export async function labelPost(post: Post | (AppBskyFeedPost.Record & { uri: st
         }
     }
 
-    await addLabels(uri, [...labels].map(getLabelIdForTag).filter(e => e !== undefined));
+    //await bot.label({
+    //    reference: { uri: post.uri, cid: post.cid },
+    //    labels: [...labels].map(getLabelIdForTag)
+    //        .filter(e => e !== undefined)
+    //        .filter(e => e in labelDefinitions),
+    //});
+
+    if (labels.size > 0) {
+        await addLabels(post.uri, [...labels].map(getLabelIdForTag)
+            .filter(e => e !== undefined)
+            .filter(e => e in labelDefinitions));
+    } else {
+        logger.info('No matches');
+    }
 }
 
 // export const label = async (subject: string | AppBskyActorDefs.ProfileView, rkey: string) => {
@@ -120,12 +143,22 @@ export async function labelPost(post: Post | (AppBskyFeedPost.Record & { uri: st
 //     }
 // }
 
-async function addLabels(uri: string, identifiers: string[]) {
+async function addLabels(uri: string, identifiers: string[], cid?: string) {
     logger.info(`New labels: ${identifiers.join(', ')}`);
 
     try {
-        await labelerServer.createLabels({ uri }, { create: identifiers });
-        logger.info(`Successfully labeled ${uri} with ${identifiers.join(', ')}`);
+        const createdAt = new Date().toISOString();
+
+        for (const identifier of identifiers) {
+            await labelerServer.createLabel({
+                uri,
+                val: identifier,
+                cid,
+                cts: createdAt
+            })
+        }
+
+        logger.info(`Successfully labeled ${uri} with ${identifiers.map(e => labelDefinitions[e].locales[0].name).join(', ')}`);
     } catch (error) {
         logger.error(`Error adding new label: ${error}`);
     }

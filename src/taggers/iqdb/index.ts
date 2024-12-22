@@ -1,6 +1,7 @@
-import { getOrDefault, tagsByName, tagsByNameOrAlias } from '../labels/index.js';
-import { IQDBLibs_2D, makeSearchFunc } from './iqdb-client/src/index.js';
-import { Matcher, Rating } from './matcher.js';
+import { getOrDefault, tagsByName, tagsByNameOrAlias } from '../../labels/index.js';
+import { IQDBLibs_2D } from './iqdb-client/src/h.js';
+import { makeSearchFunc } from './iqdb-client/src/index.js';
+import { Matcher, Rating } from '../matcher.js';
 
 // eslint-disable-next-line @typescript-eslint/no-namespace
 namespace DanbooruSchema {
@@ -140,7 +141,7 @@ export class IqdbMatcher extends Matcher {
 
                 const tags: number[] = [];
                 for (const tag of post.tag_string.split(' ')) {
-                    const tagId = await getOrDefault(tagsByNameOrAlias, tag);
+                    const tagId = tagsByNameOrAlias.get(tag);
                     if (tagId !== undefined) {
                         tags.push(tagId);
                     }
