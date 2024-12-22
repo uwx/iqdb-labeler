@@ -1,16 +1,15 @@
-import { ConfigurationStorage } from 'config-storage';
 import { db } from '../backend/db.js';
 
 class Configuration<T extends object> {
-    private constructor(private readonly storage: ConfigurationStorage, private readonly key?: string) {
+    private constructor(private readonly key?: string) {
     }
     
     static async getConfiguration<T extends object>(key?: string) {
-        return new Configuration<T>(await ConfigurationStorage.getStorage('iqdb-labeler'), key);
+        return new Configuration<T>(key);
     }
 
     subconfig<T extends object>(subkey: string) {
-        return new Configuration<T>(this.storage, this.key ? `${this.key}.${subkey}` : subkey);
+        return new Configuration<T>(this.key ? `${this.key}.${subkey}` : subkey);
     }
 
     private getActualKey(key: string) {
