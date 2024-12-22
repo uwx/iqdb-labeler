@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { spawn } from 'promisify-child-process'
+import { spawn } from 'cross-spawn';
 
 import logger from '../../backend/logger.js';
 import { Match, Matcher } from '../matcher.js';
@@ -12,13 +12,14 @@ const deepDanbooruProcess = spawn(
     path.join(process.cwd(), 'extern/wdv3-timm', '.venv', 'Scripts', 'python.exe'), ['wdv3_timm_server.py'],
     {
         cwd: path.join(process.cwd(), 'extern/wdv3-timm'),
-        encoding: 'utf-8',
         env: {
             ...process.env,
             THRESHOLD: '0.5',
-            AUTH_KEY: AUTH_KEY,
-        }
-    });
+            AUTH_KEY,
+        },
+        stdio: ['ignore', 'pipe', 'pipe'],
+    }
+);
 
 deepDanbooruProcess.stdout?.on('data', data => {
     for (const line of data.toString('utf-8').split('\n')) {
