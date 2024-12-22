@@ -13,3 +13,6 @@
 [submodule "src/@skyware/labeler"]
 	path = src/@skyware/labeler
 	url = https://github.com/deliciously-default/labeler
+[submodule "extern/wdv3-timm"]
+	path = extern/wdv3-timm
+	url = https://github.com/spearcat/wdv3-timm
