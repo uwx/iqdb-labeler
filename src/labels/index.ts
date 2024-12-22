@@ -36,18 +36,18 @@ export async function getTag(idOrNameOrAlias: number | string): Promise<Tag | un
         return await db
             .selectFrom('Tag')
             .selectAll()
-            .where('id', '==', idOrNameOrAlias)
+            .where('id', '=', idOrNameOrAlias)
             .executeTakeFirst();
     }
     return await db
         .selectFrom('Tag')
         .selectAll()
-        .where('name', '==', idOrNameOrAlias)
+        .where('name', '=', idOrNameOrAlias)
         .executeTakeFirst()
         ?? await db
             .selectFrom(['TagAlias', 'Tag'])
-            .where('TagAlias.antecedentName', '==', idOrNameOrAlias)
-            .whereRef('TagAlias.consequentName', '==', 'Tag.name')
+            .where('TagAlias.antecedentName', '=', idOrNameOrAlias)
+            .whereRef('TagAlias.consequentName', '=', 'Tag.name')
             .selectAll('Tag')
             .executeTakeFirst();
 }
@@ -169,7 +169,7 @@ export async function *getLabelValueDefinitions() {
     for (const tag of await db.selectFrom('Tag')
         .selectAll()
         .where(eb => eb.and([
-            eb('isDeprecated', '==', false),
+            eb('isDeprecated', '=', false),
             eb('postCount', '>=', 10000),
             eb('category', '!=', TagCategory.Meta),
             eb('name', 'not in', [...ignoredTags])
@@ -179,7 +179,7 @@ export async function *getLabelValueDefinitions() {
     ) {
         logger.debug(`${i++}: ${tag.name ?? tag.id}`);
 
-        const wikiPage = await db.selectFrom('WikiPage').selectAll().where('title', '==', tag.name).executeTakeFirst();
+        const wikiPage = await db.selectFrom('WikiPage').selectAll().where('title', '=', tag.name).executeTakeFirst();
 
         const identifier = assertLabelIdValid(await getLabelIdForTag(tag)!);
 
@@ -219,7 +219,7 @@ export async function getLabelIdForTag(tag: number | string | Tag): Promise<stri
         const theTag = await db
             .selectFrom('Tag')
             .select(['id', 'name'])
-            .where('name', '==', tag)
+            .where('name', '=', tag)
             .executeTakeFirst();
 
         if (theTag) {
@@ -229,7 +229,7 @@ export async function getLabelIdForTag(tag: number | string | Tag): Promise<stri
         const theTag = await db
             .selectFrom('Tag')
             .select(['id', 'name'])
-            .where('id', '==', tag)
+            .where('id', '=', tag)
             .executeTakeFirst();
 
         if (theTag) {

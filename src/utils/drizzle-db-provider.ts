@@ -6,7 +6,7 @@ import { XRPCError } from "@atcute/client";
 import { At } from "@atcute/client/lexicons";
 import { sql } from "kysely";
 
-export class DrizzleDbProvider implements DbProvider {
+export class KyselyDbProvider implements DbProvider {
 
     constructor() {
     }
@@ -15,7 +15,7 @@ export class DrizzleDbProvider implements DbProvider {
         return await db
             .selectFrom('Label')
             .selectAll()
-            .where(eb => eb.and([eb('val', '==', identifier), eb('id', '>', cursor)]))
+            .where(eb => eb.and([eb('val', '=', identifier), eb('id', '>', cursor)]))
             .orderBy('id asc')
             .limit(limit)
             .execute() as SavedLabel[];
@@ -70,7 +70,7 @@ export class DrizzleDbProvider implements DbProvider {
 
         console.log('isCursorInTheFuture', latest.rows[0].id)
 
-        return cursor > latest.rows[0].id;
+        return !latest.rows[0].id ? true : cursor > latest.rows[0].id;
     }
 
     iterateLabels(cursor = 0) {

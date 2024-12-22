@@ -8,7 +8,7 @@ import { XRPCError } from '@atcute/client';
 import { aesDecrypt } from './backend/crypto.js';
 import { BotLabelRecordOptions } from '#skyware/bot';
 import { fastifyWebsocket } from "@fastify/websocket";
-import { LmdbDbProvider } from './utils/lmdb-skyware-db-provider.js';
+import { KyselyDbProvider } from './utils/drizzle-db-provider.js';
 
 const app = fastify({
     logger: logger as FastifyBaseLogger
@@ -17,7 +17,7 @@ const app = fastify({
 // needs to be registered before all other routes because of fastifyWebsocket...
 await app.register(fastifyWebsocket);
 
-await app.register(labelerServerPlugin, { did: DID, signingKey: SIGNING_KEY, db: new LmdbDbProvider(db) });
+await app.register(labelerServerPlugin, { did: DID, signingKey: SIGNING_KEY, db: new KyselyDbProvider() });
 export const labelerServer = app[labelerServerKey];
 
 await app.register(metricsServer);

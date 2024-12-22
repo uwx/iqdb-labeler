@@ -74,8 +74,8 @@ jetstream.onCreate('app.bsky.graph.follow', async ({ commit: { record, rkey }, d
 
 // is this the only way to find out if the follow record is for myself?
 jetstream.onDelete('app.bsky.graph.follow', async ({ commit: { rkey }, did }) => {
-    const res = await db.deleteFrom('Follower').where('Follower.rkey', '==', rkey).execute();
-    if (res.length > 0) {
+    const res = await db.deleteFrom('Follower').where('Follower.rkey', '=', rkey).execute();
+    if (res[0].numDeletedRows > 0) {
         logger.debug(`Unfollowed by ${did}`);
     }
 });
@@ -91,8 +91,8 @@ jetstream.onCreate('app.bsky.feed.like', async ({ commit: { record, rkey }, did 
     }
 
     if (
-        await db.selectFrom('Liker').where('Liker.did', '==', did).executeTakeFirst() ||
-        await db.selectFrom('Follower').where('Follower.did', '==', did).executeTakeFirst()
+        await db.selectFrom('Liker').select('did').where('did', '=', did).executeTakeFirst() ||
+        await db.selectFrom('Follower').select('did').where('did', '=', did).executeTakeFirst()
     ) {
         labelPost(record.subject.uri).catch((error: unknown) => {
             logger.error(`Unexpected error labeling ${record.subject.uri}: ${error}`);
@@ -107,8 +107,8 @@ jetstream.onCreate('app.bsky.feed.like', async ({ commit: { record, rkey }, did 
 });
 
 jetstream.onDelete('app.bsky.feed.like', async ({ commit: { rkey }, did }) => {
-    const res = await db.deleteFrom('Liker').where('Liker.rkey', '==', rkey).execute();
-    if (res.length > 0) {
+    const res = await db.deleteFrom('Liker').where('Liker.rkey', '=', rkey).execute();
+    if (res[0].numDeletedRows > 0) {
         logger.debug(`Un-liked by ${did}`);
     }
 });
@@ -120,8 +120,8 @@ jetstream.onCreate('app.bsky.feed.post', async (event) => {
     const uri = `at://${did}/app.bsky.feed.post/${rkey}`;
 
     if (
-        await db.selectFrom('Liker').where('Liker.did', '==', did).executeTakeFirst() ||
-        await db.selectFrom('Follower').where('Follower.did', '==', did).executeTakeFirst()
+        await db.selectFrom('Liker').select('did').where('did', '=', did).executeTakeFirst() ||
+        await db.selectFrom('Follower').select('did').where('did', '=', did).executeTakeFirst()
     ) {
         labelPost(await bot.getPost(uri)).catch((error: unknown) => {
             logger.error(`Unexpected error labeling ${uri}: ${error}`);

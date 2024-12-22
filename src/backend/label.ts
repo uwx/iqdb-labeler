@@ -56,14 +56,14 @@ export async function labelPost(post: Post | (AppBskyFeedPost.Record & { uri: st
         let match = await db
             .selectFrom('Match')
             .selectAll()
-            .where('Match.url', '==', imageUrl)
+            .where('Match.url', '=', imageUrl)
             .executeTakeFirst();
 
         if (!match) {
             for (const [matcher, matchCandidate] of await Promise.all(matchers.map(async matcher => [matcher, await matcher.getMatch(imageUrl)] as const))) {
                 if (matchCandidate) {
                     if ('error' in matchCandidate) {
-                        console.error(matchCandidate['error']);
+                        // console.error(matchCandidate['error']);
                         logger.error({error: inspect(matchCandidate['error'])}, `During ${imageUrl} matching for ${matcher.constructor.name}`)
                     } else {
                         match = {

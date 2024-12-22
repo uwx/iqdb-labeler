@@ -50,7 +50,7 @@ const logger = traceCaller(pino({
                 target: 'pino-pretty',
                 options: {
                     colorize: true,
-                    translateTime: 'SYS:yyyy-mm-dd HH:MM:ss Z',
+                    translateTime: 'SYS:mmm dS H:MM:ss',
                     ignore: 'pid,hostname',
                 } satisfies PinoPretty.PrettyOptions,
             }
