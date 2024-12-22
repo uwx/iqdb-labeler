@@ -1,0 +1,73 @@
+generator kysely {
+    provider = "prisma-kysely"
+    // Optionally provide a destination directory for the generated file
+    // and a filename of your choice
+    output = "../src/backend/db"
+    fileName = "ridb-types.ts"
+}
+
+datasource db {
+    provider = "sqlite"
+    url      = "file:../db/reverse-image.db"
+}
+
+model Cursor {
+    serviceName String @id
+    cursorId Int
+}
+
+model Hash {
+    hash Bytes
+    hashType Int
+
+    service Int
+    id Int
+
+    @@id([hash, service, hashType])
+    // @@index([hash, hashType])
+    // @@index([service, hashType])
+}
+
+model ScraperEntry {
+    service Int
+    id Int
+
+    md5 String?
+    sha1 String?
+
+    @@id([id, service])
+}
+
+model Post {
+    service Int
+    id Int
+
+    /// @kyselyType(1 | 0)
+    missing Boolean
+    /// @kyselyType(1 | 0)
+    deleted Boolean
+
+    image String? // string[]
+    thumbnailImage String? // string[]
+    /// @kyselyType('g' | 's' | 'q' | 'e' | null)
+    rating String?
+    tags String? // string[]
+    artist String? // string[]
+    source String? // string[]
+    createdAt String?
+    ext String?
+
+    md5 String?
+    sha1 String?
+
+    @@id([id, service])
+}
+
+model PostError {
+    service Int
+    id Int
+
+    error String
+
+    @@id([id, service])
+}

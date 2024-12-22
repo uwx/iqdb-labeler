@@ -3,33 +3,43 @@ import { generateSignature as phashGenerateSignature } from "./phash/index.js";
 import { loadAndGenerateSignature as puzzleGenerateSignature } from "./edge/puzzle-nativeaot.js";
 import sharp from 'sharp';
 import { readFile } from "node:fs/promises";
-import { LmdbWrapper } from "../utils/lmdb-wrapper.js";
 import bmp from "sharp-bmp";
 import { uint64ToUint8Array, uint8ArrayToUint64 } from "../utils/ints.js";
+import SQLite from 'better-sqlite3'
 
-const riDb = new LmdbWrapper('reverse-image-database', {
-    keyEncoding: 'binary',
-    encoding: 'binary',
+export const riDb = new Kysely<DB>({
+    dialect: new SqliteDialect({
+        database: new SQLite("./db/reverse-image.db"),
+    }),
+    log(event) {
+        if (event.level === "error") {
+            logger.error({
+                error: event.error,
+                sql: event.query.sql,
+                params: event.query.parameters,
+            }, `RIDB query failed in ${event.queryDurationMillis.toFixed(2)}ms`);
+        } else { // 'query'
+            logger.trace({
+                sql: event.query.sql,
+                params: event.query.parameters,
+            }, `RIDB query executed in ${event.queryDurationMillis.toFixed(2)}ms`);
+        }
+    }
 });
 
-export const cursors = riDb.table<string, number>('cursors', 'ordered-binary', 'ordered-binary');
-
-export const hashesReverse = riDb.table<[service: Service, id: number | string], [phash: Uint8Array, puzzle: Uint8Array]>('TEMP-HASHES-REVERSE', 'ordered-binary', 'msgpack');
-
-const valuesTable = riDb.table<[service: Service, id: number | string], ScraperEntry>('values', 'ordered-binary', 'msgpack');
-
-// key: single int64 containing an 8x8 similarity bit table
-// value: [Service, ID] index into valuesTable
-const phashTable = riDb.table<Uint8Array, [service: Service, id: number | string]>('phash', 'binary', 'ordered-binary');
-
-// key: uint8 array of 2-bit encoded values, of length ((gridSize * gridSize * 8) / 4), default gridSize is 9
-// value: [Service, ID] index into valuesTable
-const puzzleTable = riDb.table<Uint8Array, [service: Service, id: number | string]>('puzzle', 'binary', 'ordered-binary');
+await sql`PRAGMA journal_mode = WAL`.execute(riDb);
 
 // temp
 import { PartialPost } from "../utils/booru-client/types.js";
-export const postsDb = riDb.table<[service: Service, id: number | string], PartialPost>('TEMP-POSTS', 'ordered-binary', 'msgpack');
-export const errorsDb = riDb.table<[service: Service, id: number | string], string>('TEMP-ERRORS', 'ordered-binary', 'msgpack');
+import { Insertable, Kysely, sql, SqliteDialect } from "kysely";
+import { DB, ScraperEntry } from "../backend/db/ridb-types.js";
+import logger from "../backend/logger.js";
+import toBuffer from "typedarray-to-buffer";
+
+const enum HashType {
+    Puzzle,
+    PHash,
+}
 
 export enum Service {
     Danbooru,
@@ -40,41 +50,24 @@ export enum Service {
     Gelbooru,
 }
 
-export interface ScraperEntry {
-    // the service itself
-    s: Service;
-
-    // per-service proprietary components
-    i: string | number;
-    j?: string | number;
-    k?: string | number;
-    l?: string | number;
-
-    // optional md5
-    m?: string;
-
-    // optional sha1
-    h?: string;
-}
-
 export interface PostEntry {
     service: Service;
-    get postId(): string | number;
-    toScraperEntry(): ScraperEntry;
+    get postId(): number;
+    toScraperEntry(): Insertable<ScraperEntry>;
 }
 
 export class IdPostEntry {
     constructor(public readonly postId: number, public readonly service: Service, public readonly md5?: string) {}
 
     static fromScraperEntry(scraperEntry: ScraperEntry) {
-        return new this(+scraperEntry.i, scraperEntry.s, scraperEntry.m);
+        return new this(+scraperEntry.id, scraperEntry.service, scraperEntry.md5 ?? undefined);
     }
 
-    toScraperEntry(): ScraperEntry {
+    toScraperEntry() {
         return {
-            s: this.service,
-            i: this.postId,
-            ...(this.md5 ? { m: this.md5 } : {})
+            service: this.service,
+            id: this.postId,
+            ...(this.md5 ? { md5: this.md5 ?? null } : {})
         };
     }
 }
@@ -98,7 +91,7 @@ export async function addEntry(input: string
     | Float32Array
     | Float64Array,
     value: PostEntry
-): Promise<[key: [service: Service, postId: string | number], puzzleSigArray: Uint8Array, phashSigArray: Uint8Array]> {
+): Promise<[key: [service: Service, postId: number], puzzleSigArray: Uint8Array, phashSigArray: Uint8Array]> {
     const img = typeof input !== 'string' && isBmp(input)
         ? (bmp.sharpFromBmp(Buffer.from(input as ArrayBuffer), { failOnError: false }) as sharp.Sharp)
         : sharp(input, { failOnError: false });
@@ -113,26 +106,45 @@ export async function addEntry(input: string
     const puzzleSigArray = new Uint8Array(encodeToBitArray(puzzleSignature));
     const phashSigArray = uint64ToUint8Array(phashSignature);
 
-    await riDb.transaction(() => {
-        valuesTable.put([value.service, uid], value.toScraperEntry());
-        puzzleTable.put(puzzleSigArray, [value.service, uid]);
-        phashTable.put(phashSigArray, [value.service, uid]);
+    await riDb.transaction().execute(async trx => {
+        await trx.insertInto('Hash').values([{
+            hashType: HashType.Puzzle,
+            service: value.service,
+            hash: toBuffer(puzzleSigArray),
+            id: uid,
+        }, {
+            hashType: HashType.PHash,
+            service: value.service,
+            hash: toBuffer(phashSigArray),
+            id: uid,
+        }]).execute();
 
-        hashesReverse.put([value.service, uid], [phashSigArray, puzzleSigArray]);
-    });
+        await trx
+            .insertInto('ScraperEntry')
+            .values(value.toScraperEntry())
+            .execute();
+    })
 
     return [[value.service, uid], puzzleSigArray, phashSigArray];
 }
 
-export function *iteratePuzzleHashes(): Generator<[hash: LuminosityLevel[], key: [service: Service, id: string | number]]> {
-    for (const {key, value} of puzzleTable.getRange()) {
-        yield [decodeFromBitArray(key.buffer), value];
+export async function *iteratePuzzleHashes(): AsyncGenerator<[hash: LuminosityLevel[], key: [service: Service, id: number]]> {
+    for await (const entry of riDb
+            .selectFrom('Hash')
+            .where('hashType', '==', HashType.Puzzle)
+            .select(['hash', 'service', 'id'])
+            .stream()) {
+        yield [decodeFromBitArray(entry.hash.buffer), [entry.service, entry.id]];
     }
 }
 
-export function *iteratePHashHashes(): Generator<[hash: bigint, key: [service: Service, id: string | number]]> {
-    for (const {key, value} of phashTable.getRange()) {
-        yield [uint8ArrayToUint64(key.buffer), value];
+export async function *iteratePHashHashes(): AsyncGenerator<[hash: bigint, key: [service: Service, id: number]]> {
+    for await (const entry of riDb
+        .selectFrom('Hash')
+        .where('hashType', '==', HashType.PHash)
+        .select(['hash', 'service', 'id'])
+        .stream()) {
+        yield [uint8ArrayToUint64(entry.hash.buffer), [entry.service, entry.id]];
     }
 }
 
@@ -141,8 +153,15 @@ export function *iteratePHashHashes(): Generator<[hash: bigint, key: [service: S
  * @param key the key, from {@link addEntry}, {@link iteratePuzzleHashes} or {@link iteratePHashHashes}.
  * @returns ScraperEntry
  */
-export function getEntry(key: [service: Service, id: string | number]) {
-    return valuesTable.get(key);
+export async function getEntry([service, id]: [service: Service, id: number]): Promise<ScraperEntry | undefined> {
+    return await riDb
+        .selectFrom('ScraperEntry')
+        .where(eb => eb.and([
+            eb('id', '==', id),
+            eb('service', '==', service)
+        ]))
+        .selectAll()
+        .executeTakeFirst();
 }
 
 function isBmp(buf: Buffer | ArrayBuffer | Uint8Array | Uint8ClampedArray | Int8Array | Uint16Array | Int16Array | Uint32Array | Int32Array | Float32Array | Float64Array) {

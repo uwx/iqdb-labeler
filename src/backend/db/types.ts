@@ -4,6 +4,10 @@ export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
   : ColumnType<T, T | undefined, T>;
 export type Timestamp = ColumnType<Date, Date | string, Date | string>;
 
+export type Config = {
+    key: string;
+    value: string | null;
+};
 export type Follower = {
     did: string;
     rkey: string;
@@ -102,6 +106,7 @@ export type WikiPage = {
     createdAt: number | null;
 };
 export type DB = {
+    Config: Config;
     Follower: Follower;
     Label: Label;
     Liker: Liker;

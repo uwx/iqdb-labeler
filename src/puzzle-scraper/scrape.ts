@@ -1,5 +1,5 @@
 import logger from "../backend/logger.js";
-import { addEntry, cursors, errorsDb, hashesReverse, IdPostEntry, postsDb, Service } from "./database.js";
+import { addEntry, IdPostEntry, riDb, Service } from "./database.js";
 import * as clients from "../utils/booru-client/index.js";
 import { USER_AGENT as E6_USER_AGENT } from "../utils/booru-client/clients/e621.js";
 
@@ -12,6 +12,97 @@ const scrapers = [
     ['Gelbooru', new clients.Gelbooru(), (id: number, md5?: string) => new IdPostEntry(id, Service.Gelbooru, md5), Service.Gelbooru],
 ] as const;
 
+async function getScrapeCursor(scraperName: string) {
+    return (
+        await riDb
+            .selectFrom('Cursor')
+            .where('serviceName', '==', scraperName)
+            .select('cursorId')
+            .executeTakeFirst()
+    )?.cursorId;
+}
+
+async function updateCursor(scraperName: string, cursorId: number) {
+    await riDb
+        .insertInto('Cursor')
+        .values({
+            serviceName: scraperName,
+            cursorId
+        })
+        .onConflict(oc => oc.column('serviceName').doUpdateSet({
+            cursorId
+        }))
+        .execute();
+}
+
+async function hasEntryWithKey([service, id]: [service: Service, id: number]) {
+    return (
+        await riDb
+            .selectFrom('Hash')
+            .where(eb => eb.and([
+                eb('service', '==', service),
+                eb('id', '==', id),
+            ]))
+            .limit(2)
+            .execute()
+    ).length == 2; // 2 hash kinds
+}
+
+async function addPostEntry([service, id]: [service: Service, id: number], post: {
+    id: number;
+    missing?: false;
+    deleted?: false;
+    image: string[];
+    thumbnail_image: string[];
+    rating: "g" | "s" | "q" | "e";
+    tags: string[];
+    artist: string[];
+    source: string[];
+    created_at: string;
+    ext: string;
+    md5?: string;
+    sha1?: string;
+}) {
+    await riDb
+        .insertInto('Post')
+        .values({
+            service: service,
+            id: id,
+
+            missing: 0,
+            deleted: 0,
+        
+            image: JSON.stringify(post.image),
+            thumbnailImage: JSON.stringify(post.thumbnail_image),
+            rating: post.rating,
+            tags: JSON.stringify(post.tags),
+            artist: JSON.stringify(post.artist),
+            source: JSON.stringify(post.source),
+            createdAt: post.created_at,
+            ext: post.ext,
+        
+            md5: post.md5,
+            sha1: post.sha1,
+        })
+        .onConflict(oc => oc.doNothing())
+        .execute();
+}
+
+async function addErrorEntry([service, id]: [service: Service, id: number], message: string) {
+    await riDb
+        .insertInto('PostError')
+        .values({
+            id: id,
+            service: service,
+            error: message,
+        })
+        .onConflict(oc => oc.column('id').doUpdateSet({
+            service: service,
+            error: message,
+        }))
+        .execute();
+}
+
 const validExts = new Set(['png', 'apng', 'webp', 'jpg', 'jpeg', 'gif', 'bmp']);
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -23,7 +114,7 @@ const scraperPromise: Promise<unknown>[] = [];
 for (const [scraperName, scraper, postEntryCtor, svc] of scrapers) {
     scraperPromise.push((async () => {
         while (true) {
-            const startId = cursors.get(scraperName) ?? 0;
+            const startId = await getScrapeCursor(scraperName) ?? 0;
 
             console.time(`${scraperName} #${startId}`);
 
@@ -38,17 +129,16 @@ for (const [scraperName, scraper, postEntryCtor, svc] of scrapers) {
 
             mast:
             for (const post of posts) {
-                const postKey = [svc, post.id] satisfies [service: Service, id: string | number];
+                const postKey = [svc, post.id] satisfies [service: Service, id: number];
 
                 if (checkExisting) {
-                    if (postsDb.doesExist(postKey) && hashesReverse.doesExist(postKey)) {
+                    if (await hasEntryWithKey(postKey)) {
                         logger.warn(`${scraperName} ${post.id}: already scraped`);
                         continue;
                     }
                 }
 
                 logger.info(`Got ${scraperName} #${post.id}`);
-                await postsDb.put(postKey, post);
 
                 if ('missing' in post && post.missing) {
                     logger.warn(`${scraperName} ${post.id}: post missing`);
@@ -59,6 +149,8 @@ for (const [scraperName, scraper, postEntryCtor, svc] of scrapers) {
                     logger.warn(`${scraperName} ${post.id}: post deleted`);
                     continue;
                 }
+
+                await addPostEntry(postKey, post);
 
                 if (!post.thumbnail_image.length) {
                     logger.error(post, `${scraperName} ${post.id}: no post.thumbnail_image`);
@@ -109,7 +201,7 @@ for (const [scraperName, scraper, postEntryCtor, svc] of scrapers) {
 
                 if (buf === undefined) {
                     logger.error(post, `no ${scraperName} #${post.id} thumbnail options worked!`);
-                    await errorsDb.put(postKey, `404 for thumbnails ${post.thumbnail_image.join(', ')}`);
+                    await addErrorEntry(postKey, `404 for thumbnails ${post.thumbnail_image.join(', ')}`);
                     continue;
                 }
 
@@ -118,12 +210,12 @@ for (const [scraperName, scraper, postEntryCtor, svc] of scrapers) {
                     logger.info(`Added entry as ID ${key}`);
                 } catch (err) {
                     logger.error({post, err}, `While processsing post #${post.id}`);
-                    await errorsDb.put(postKey, ''+err);
+                    await addErrorEntry(postKey, ''+err);
                     // throw err;
                 }
             }
 
-            await cursors.put(scraperName, Math.max(...posts.map(e => e.id)));
+            await updateCursor(scraperName, Math.max(...posts.map(e => e.id)));
 
             console.timeEnd(`${scraperName} #${startId}`);
         }
@@ -131,3 +223,4 @@ for (const [scraperName, scraper, postEntryCtor, svc] of scrapers) {
 }
 
 await Promise.all(scraperPromise);
+

@@ -23,4 +23,4 @@ export const db = new Kysely<DB>({
     }
 });
 
-await sql`PRAGMA journal_mode = WAL`.execute(db)
+await sql`PRAGMA journal_mode = WAL`.execute(db);

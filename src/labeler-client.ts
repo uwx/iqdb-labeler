@@ -18,6 +18,8 @@ function epochUsToDateTime(cursor: number): string {
     return new Date(cursor / 1000).toISOString();
 }
 
+const trackedUsers = await config.get('trackedUsers') ?? {followers: [], likers: []};
+
 logger.info('Trying to read cursor from database...');
 cursor = await config.get('jetstreamCursor') ?? 0;
 if (!cursor) {
@@ -44,7 +46,7 @@ jetstream.on('open', () => {
     cursorUpdateInterval = setInterval(async () => {
         if (jetstream.cursor) {
             logger.info(`Cursor updated to: ${jetstream.cursor} (${epochUsToDateTime(jetstream.cursor)})`);
-            await config.set('jetstreamCursor', cursor);
+            await config.set('jetstreamCursor', jetstream.cursor);
         }
     }, CURSOR_UPDATE_INTERVAL);
 });
@@ -62,37 +64,37 @@ jetstream.onCreate('app.bsky.graph.follow', async ({ commit: { record, rkey }, d
     // const uri = `at://${did}/app.bsky.graph.follow/${rkey}`;
     if (record.subject === bot.profile.did) {
         logger.debug(`Followed by ${did}`);
-        await db
-            .insertInto('Follower')
-            .values({rkey, did})
-            .onConflict(oc => oc.doNothing())
-            .execute();
-
-        // this.emit("follow", { user: await bot.getProfile(did), uri });
+        
+        const idx = trackedUsers.followers.findIndex(e => e.did === did);
+        if (idx === -1) {
+            trackedUsers.followers.push({rkey, did});
+            await config.set('trackedUsers', trackedUsers);
+        }
     }
 });
 
 // is this the only way to find out if the follow record is for myself?
 jetstream.onDelete('app.bsky.graph.follow', async ({ commit: { rkey }, did }) => {
-    const res = await db.deleteFrom('Follower').where('Follower.rkey', '=', rkey).execute();
-    if (res[0].numDeletedRows > 0) {
-        logger.debug(`Unfollowed by ${did}`);
+    const idx = trackedUsers.followers.findIndex(e => e.rkey == rkey);
+    if (idx !== -1) {
+        trackedUsers.followers.splice(idx, 1);
+        await config.set('trackedUsers', trackedUsers);
     }
 });
 
 jetstream.onCreate('app.bsky.feed.like', async ({ commit: { record, rkey }, did }) => {
     if (record.subject.uri == `at://${DID}/app.bsky.labeler.service/self`) {
         logger.debug(`Liked by ${did}`);
-        await db
-            .insertInto('Liker')
-            .values({rkey, did})
-            .onConflict(oc => oc.doNothing())
-            .execute();
+        const idx = trackedUsers.likers.findIndex(e => e.did === did);
+        if (idx === -1) {
+            trackedUsers.likers.push({rkey, did});
+            await config.set('trackedUsers', trackedUsers);
+        }
     }
 
     if (
-        await db.selectFrom('Liker').select('did').where('did', '=', did).executeTakeFirst() ||
-        await db.selectFrom('Follower').select('did').where('did', '=', did).executeTakeFirst()
+        trackedUsers.likers.find(e => e.did === did) ||
+        trackedUsers.followers.find(e => e.did === did)
     ) {
         labelPost(record.subject.uri).catch((error: unknown) => {
             logger.error(`Unexpected error labeling ${record.subject.uri}: ${error}`);
@@ -107,9 +109,10 @@ jetstream.onCreate('app.bsky.feed.like', async ({ commit: { record, rkey }, did 
 });
 
 jetstream.onDelete('app.bsky.feed.like', async ({ commit: { rkey }, did }) => {
-    const res = await db.deleteFrom('Liker').where('Liker.rkey', '=', rkey).execute();
-    if (res[0].numDeletedRows > 0) {
-        logger.debug(`Un-liked by ${did}`);
+    const idx = trackedUsers.likers.findIndex(e => e.rkey == rkey);
+    if (idx !== -1) {
+        trackedUsers.likers.splice(idx, 1);
+        await config.set('trackedUsers', trackedUsers);
     }
 });
 
@@ -120,8 +123,8 @@ jetstream.onCreate('app.bsky.feed.post', async (event) => {
     const uri = `at://${did}/app.bsky.feed.post/${rkey}`;
 
     if (
-        await db.selectFrom('Liker').select('did').where('did', '=', did).executeTakeFirst() ||
-        await db.selectFrom('Follower').select('did').where('did', '=', did).executeTakeFirst()
+        trackedUsers.likers.find(e => e.did === did) ||
+        trackedUsers.followers.find(e => e.did === did)
     ) {
         labelPost(await bot.getPost(uri)).catch((error: unknown) => {
             logger.error(`Unexpected error labeling ${uri}: ${error}`);

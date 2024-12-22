@@ -8,6 +8,12 @@ import { labelDefinitions } from '../utils/label-definitions.js';
 import { AppBskyFeedDefs, AppBskyFeedGetFeedSkeleton } from '@atcute/client/lexicons';
 import { Hono, HonoRequest } from 'hono';
 
+function getOriginalUrl(req: HonoRequest) {
+    const { pathname, search } = new URL(req.url);
+
+    return new URL(pathname + search, `${req.header('x-forwarded-proto')}://${req.header('x-forwarded-host')}`).toString();
+}
+
 async function parseAuthHeaderDid(req: HonoRequest, ownDid: string): Promise<string> {
     const authHeader = req.header('authorization');
     if (!authHeader) {
@@ -25,7 +31,7 @@ async function parseAuthHeaderDid(req: HonoRequest, ownDid: string): Promise<str
         });
     }
 
-    const nsid = (req.url || "").split("?")[0].replace("/xrpc/", "").replace(
+    const nsid = new URL(getOriginalUrl(req)).pathname.replace("/xrpc/", "").replace(
         /\/$/,
         "",
     );

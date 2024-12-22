@@ -12,7 +12,8 @@
         "lint:fix": "eslint --fix .",
         "set-tunnel": "tsx src/tools/any-tunnel.ts",
         "set-labels": "tsx src/tools/set-labels.ts",
-        "serve-tailscale": "tailscale serve --tcp 4100 4100"
+        "serve-tailscale": "tailscale serve --tcp 4100 4100",
+        "prisma-generate": "prisma generate && prisma generate --schema prisma-ridb/schema.prisma"
     },
     "lint-staged": {
         "*": "prettier --ignore-unknown --write"

@@ -1,4 +1,5 @@
 import { ConfigurationStorage } from 'config-storage';
+import { db } from '../backend/db.js';
 
 class Configuration<T extends object> {
     private constructor(private readonly storage: ConfigurationStorage, private readonly key?: string) {
@@ -11,22 +12,50 @@ class Configuration<T extends object> {
     subconfig<T extends object>(subkey: string) {
         return new Configuration<T>(this.storage, this.key ? `${this.key}.${subkey}` : subkey);
     }
+
+    private getActualKey(key: string) {
+        return this.key ? `${this.key}.${key}` : key;
+    }
     
     async get<K extends keyof T & string>(key: K): Promise<Awaited<T[K]> | undefined> {
-        return await this.storage.get(this.key ? `${this.key}.${key}` : key);
+        const value = await db
+            .selectFrom('Config')
+            .where('key', '==', this.getActualKey(key))
+            .select('value')
+            .limit(1)
+            .executeTakeFirst();
+        
+        return value?.value ? JSON.parse(value.value) : undefined;
     }
 
     async set<K extends keyof T & string>(key: K, value: T[K]): Promise<void> {
-        return await this.storage.set(this.key ? `${this.key}.${key}` : key, value);
+        await db
+            .insertInto('Config')
+            .values({
+                key: this.getActualKey(key),
+                value: JSON.stringify(value)
+            })
+            .onConflict(oc =>
+                oc.column('key')
+                    .doUpdateSet({ value: JSON.stringify(value) })
+            )
+            .execute();
     }
 
     async remove<K extends keyof T & string>(key: K) {
-        await this.storage.del(this.key ? `${this.key}.${key}` : key);
+        await db
+            .deleteFrom('Config')
+            .where('key', '==', this.getActualKey(key))
+            .execute();
     }
 }
 
 interface MainConfig {
     jetstreamCursor: number;
+    trackedUsers: {
+        likers: { rkey: string, did: string }[];
+        followers: { rkey: string, did: string }[];
+    };
 }
 
 export const config = await Configuration.getConfiguration<MainConfig>();
