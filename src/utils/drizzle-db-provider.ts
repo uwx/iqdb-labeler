@@ -95,12 +95,14 @@ export class KyselyDbProvider implements DbProvider {
         return !latest.rows[0].id ? true : cursor > latest.rows[0].id;
     }
 
-    iterateLabels(cursor = 0) {
-        return db
+    async *iterateLabels(cursor = 0) {
+        for await (const label of db
             .selectFrom('Label')
             .selectAll()
             .where('id', '>', cursor)
             .orderBy('id asc')
-            .stream() as AsyncIterableIterator<SavedLabel>;
+            .stream()) {
+            yield this.toSavedLabel(label);
+        }
     }
 }
