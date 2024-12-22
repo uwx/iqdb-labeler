@@ -1,5 +1,8 @@
 // https://stackoverflow.com/a/65863997
 
+// default: base 26 alphabet using only characters that are valid in
+// - feed rkey
+// - label identifier
 const ALPHABET = 'abcdefghijklmnopqrstuvwxyz';
 
 export function alphabetParseInt(value: string, alphabet: string = ALPHABET) {
