@@ -1,60 +1,59 @@
 import metricsServer from './services/metrics.js';
 import { DID, PORT, SIGNING_KEY } from './config.js';
-import { labelerServerPlugin, labelerServerKey } from '#skyware/labeler/index.js';
+import { LabelerServer } from '#skyware/labeler/index.js';
 import logger from './backend/logger.js';
-import fastify, { FastifyBaseLogger, FastifyError, FastifyReply, FastifyRequest } from 'fastify';
 import feedGenerator from './services/feed-generator.js';
 import { XRPCError } from '@atcute/client';
 import { aesDecrypt } from './backend/crypto.js';
 import { BotLabelRecordOptions } from '#skyware/bot';
-import { fastifyWebsocket } from "@fastify/websocket";
 import { KyselyDbProvider } from './utils/drizzle-db-provider.js';
 
-const app = fastify({
-    logger: logger as FastifyBaseLogger
-});
+import { createNodeWebSocket } from '@hono/node-ws'
+import { Context, Hono } from 'hono'
+import { serve } from '@hono/node-server'
+import { HTTPResponseError } from 'hono/types';
+import { StatusCode } from 'hono/utils/http-status';
+import { inspect } from 'node:util';
 
-// needs to be registered before all other routes because of fastifyWebsocket...
-await app.register(fastifyWebsocket, {
-    // This line is key, as it passes the HTTPS-enabled
-    // Node.js server to the underlying `ws` module:
-    server: app.server
-});
+const app = new Hono();
 
-await app.register(labelerServerPlugin, { did: DID, signingKey: SIGNING_KEY, db: new KyselyDbProvider() });
-export const labelerServer = app[labelerServerKey];
+const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
 
-await app.register(metricsServer);
+export const labelerServer = new LabelerServer(app, upgradeWebSocket, {
+    did: DID, signingKey: SIGNING_KEY, db: new KyselyDbProvider()
+}, logger);
 
-await app.register(feedGenerator, { labelerServer });
+metricsServer(app);
+
+feedGenerator(app, { labelerServer });
 
 /**
  * Catch-all handler for unknown XRPC methods.
  */
-async function unknownMethodHandler(_req: FastifyRequest, res: FastifyReply) {
-    return await res.status(501).send({ error: "MethodNotImplemented", message: "Method Not Implemented" });
+async function unknownMethodHandler(c: Context) {
+    return c.json({ error: "MethodNotImplemented", message: "Method Not Implemented" }, 501);
 }
 
 /**
  * Default error handler.
  */
-async function errorHandler(err: FastifyError, _req: FastifyRequest, res: FastifyReply) {
+async function errorHandler(err: Error | HTTPResponseError, c: Context) {
     if (err instanceof XRPCError) {
-        return await res.status(err.status).send({ error: err.kind, message: err.description });
+        return c.json({ error: err.kind, message: err.description }, err.status as StatusCode);
     } else {
         console.error(err);
-        return await res.status(500).send({
+        return c.json({
             error: "InternalServerError",
             message: "An unknown error occurred",
-        });
+        }, 500);
     }
 }
 
-app.post('/label', async (req: FastifyRequest<{ Body: string }>, res) => {
-    const decryptedBody: BotLabelRecordOptions = JSON.parse(await aesDecrypt(req.body));
+app.post('/label', async q => {
+    const decryptedBody: BotLabelRecordOptions = JSON.parse(await aesDecrypt(await q.req.text()));
 
     if (!('uri' in decryptedBody.reference)) {
-        return await res.code(400).send('No URI');
+        return q.text('No URI', 400);
     }
 
     const labels = await labelerServer.createLabels(
@@ -64,33 +63,22 @@ app.post('/label', async (req: FastifyRequest<{ Body: string }>, res) => {
         },
     );
 
-    return await res.code(200).send(labels);
+    return q.json(labels, 200);
 })
 
 app.get("/xrpc/*", unknownMethodHandler);
 
-app.get('/robots.txt', async (req, res) => {
-    return await res.code(200).send(['User-agent: *', 'Disallow: /'].join('\n'));
+app.get('/robots.txt', async (q) => {
+    return q.text(['User-agent: *', 'Disallow: /'].join('\n'), 200);
 })
 
-app.setErrorHandler(errorHandler);
+app.onError(errorHandler);
 
-const address = await app.listen({ port: PORT });
-logger.info(`Labeler server listening on ${address}`);
-
-function shutdown() {
-    try {
-        logger.info('Shutting down gracefully...');
-        app.close();
-    } catch (error) {
-        logger.error(`Error shutting down gracefully: ${error}`);
-        process.exit(1);
-    }
-}
+const server = serve({
+    fetch: app.fetch,
+    port: PORT,
+});
+injectWebSocket(server);
+logger.info(`Labeler server listening on ${inspect(server.address())}`);
 
 logger.info('g');
-
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
-
-logger.info('h');

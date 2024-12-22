@@ -6,10 +6,10 @@ import { FEEDS_DOMAIN } from '../config.js';
 import { LabelerServer } from '#skyware/labeler/index.js';
 import { labelDefinitions } from '../utils/label-definitions.js';
 import { AppBskyFeedDefs, AppBskyFeedGetFeedSkeleton } from '@atcute/client/lexicons';
-import fastifyPlugin from 'fastify-plugin';
+import { Hono, HonoRequest } from 'hono';
 
-async function parseAuthHeaderDid(req: FastifyRequest, ownDid: string): Promise<string> {
-    const authHeader = req.headers.authorization;
+async function parseAuthHeaderDid(req: HonoRequest, ownDid: string): Promise<string> {
+    const authHeader = req.header('authorization');
     if (!authHeader) {
         throw new XRPCError(401, {
             kind: "AuthRequired",
@@ -25,7 +25,7 @@ async function parseAuthHeaderDid(req: FastifyRequest, ownDid: string): Promise<
         });
     }
 
-    const nsid = (req.originalUrl || req.url || "").split("?")[0].replace("/xrpc/", "").replace(
+    const nsid = (req.url || "").split("?")[0].replace("/xrpc/", "").replace(
         /\/$/,
         "",
     );
@@ -35,39 +35,35 @@ async function parseAuthHeaderDid(req: FastifyRequest, ownDid: string): Promise<
     return payload.iss;
 }
 
-export default fastifyPlugin((app: FastifyInstance, { labelerServer }: { labelerServer: LabelerServer }, done) => {
-    app.get('/xrpc/app.bsky.feed.getFeedSkeleton', async (req: FastifyRequest<{ Querystring: AppBskyFeedGetFeedSkeleton.Params }>, res) => {
-        const requesterDid = await parseAuthHeaderDid(req, `did:web:${FEEDS_DOMAIN}`);
+export default function(app: Hono, { labelerServer }: { labelerServer: LabelerServer }) {
+    app.get('/xrpc/app.bsky.feed.getFeedSkeleton', async (c) => {
+        const requesterDid = await parseAuthHeaderDid(c.req, `did:web:${FEEDS_DOMAIN}`);
 
-        if (!req.query.feed) {
-            await res.code(500).send("no feed specified");
-            return;
+        if (!c.req.query('feed')) {
+            return c.text("no feed specified", 500);
         }
 
-        const feed = req.query["feed"]
+        const feed = c.req.query('feed')!;
         if (!feed.startsWith("at://")) {
-            await res.code(500).send("feed must be a valid AT URI")
-            return;
+            return c.text("feed must be a valid AT URI", 500);
         }
 
         const aturi_parts = feed.slice("at://".length).split("/")
         if (aturi_parts.length != 3) {
-            await res.code(500).send("feed must be a valid AT URI")
-            return;
+            return c.text("feed must be a valid AT URI", 500);
         }
 
         const [feed_did, feed_collection, feed_name] = aturi_parts;
         if (feed_collection != "app.bsky.feed.generator") {
-            await res.code(500).send("feed must reference a feed generator record")
-            return;
+            return c.text("feed must reference a feed generator record", 500);
         }
 
         // XXX: I think it would technically be valid for feed_did to be a handle here
         //if (feed_did != FEED_PUBLISHER_DID):
         //	return res.code(404).send("we don't host any feeds from that publisher")
 
-        let limit = req.query.limit ?? 50;
-        const cursor = req.query.cursor ? Number(req.query.cursor) : 0;
+        let limit = Number(c.req.query('limit') ?? '50');
+        const cursor = Number(c.req.query('cursor') ?? 0);
 
         if (limit < 1)
             limit = 1;
@@ -75,8 +71,7 @@ export default fastifyPlugin((app: FastifyInstance, { labelerServer }: { labeler
             limit = 100;
 
         if (!(feed_name in labelDefinitions)) {
-            await res.code(404).send("feed does not exist");
-            return;
+            return c.text("feed does not exist", 404);
         }
 
         const queryResult = await labelerServer.queryLabels(feed_name, isNaN(cursor) ? 0 : cursor, limit);
@@ -89,11 +84,11 @@ export default fastifyPlugin((app: FastifyInstance, { labelerServer }: { labeler
             obj.cursor = ''+Math.max(...queryResult.map(e => e.id));
         }
 
-        await res.code(200).send(obj);
+        return c.json(obj);
     });
 
-    app.get('/.well-known/did.json', async (req, res) => {
-        await res.code(200).send({
+    app.get('/.well-known/did.json', async (c) => {
+        return c.json({
             '@context': ['https://www.w3.org/ns/did/v1'],
             id: `did:web:${FEEDS_DOMAIN}`,
             service: [
@@ -106,5 +101,4 @@ export default fastifyPlugin((app: FastifyInstance, { labelerServer }: { labeler
         } satisfies DidDocument & { '@context': [string] });
     });
 
-    done();
-});
+}
