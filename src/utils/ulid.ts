@@ -1,4 +1,4 @@
-import * as id128 from 'id128';
+import id128 from 'id128';
 
 const Ulid = id128.Ulid;
 
@@ -12,3 +12,4 @@ export function ulid(optionOrArray?: ArrayBuffer | Uint8Array | { time?: Date | 
 }
 
 export const ulidZero = ulid({ time: 0 });
+
