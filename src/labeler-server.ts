@@ -14,6 +14,7 @@ import { serve } from '@hono/node-server'
 import { HTTPResponseError } from 'hono/types';
 import { StatusCode } from 'hono/utils/http-status';
 import { inspect } from 'node:util';
+import { db } from './backend/db.js';
 
 const app = new Hono();
 
@@ -55,6 +56,12 @@ app.post('/label', async q => {
     if (!('uri' in decryptedBody.reference)) {
         return q.text('No URI', 400);
     }
+    
+    if (await db.selectFrom('LabeledPost').where('uri', '==', decryptedBody.reference.uri).select('uri').executeTakeFirst()) {
+        return q.text('Already labeled post', 400);
+    }
+
+    await db.insertInto('LabeledPost').values(decryptedBody.reference).execute();
 
     const labels = await labelerServer.createLabels(
         decryptedBody.reference,

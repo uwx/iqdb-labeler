@@ -26,6 +26,10 @@ export type Label = {
     exp: number | null;
     sig: Buffer;
 };
+export type LabeledPost = {
+    uri: string;
+    cid: string | null;
+};
 export type Liker = {
     did: string;
     rkey: string;
@@ -109,6 +113,7 @@ export type DB = {
     Config: Config;
     Follower: Follower;
     Label: Label;
+    LabeledPost: LabeledPost;
     Liker: Liker;
     Match: Match;
     Tag: Tag;

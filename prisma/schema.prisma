@@ -73,6 +73,11 @@ model Label {
     @@index(val)
 }
 
+model LabeledPost {
+    uri String @id
+    cid String?
+}
+
 model Tag {
     id Int @id
     name String? @unique
