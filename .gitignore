@@ -22,3 +22,4 @@ bun.lockb
 *.db-shm
 *.db-wal
 *.db-journal
+/src/taggers/node-wd-vit-v3/model.onnx
