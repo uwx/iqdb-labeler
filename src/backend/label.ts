@@ -28,6 +28,11 @@ export async function labelPost(post: Post | (AppBskyFeedPost.Record & { uri: st
     if (typeof post === 'string') {
         post = await bot.getPost(post);
     }
+    
+    if (await db.selectFrom('LabeledPost').where('uri', '==', post.uri).select('uri').executeTakeFirst()) {
+        logger.debug('Already labeled post');
+        return;
+    }
 
     const images: string[] = [];
 
