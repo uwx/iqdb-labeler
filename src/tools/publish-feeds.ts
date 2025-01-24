@@ -1,12 +1,11 @@
-import { AppBskyFeedGenerator, At, Brand, ComAtprotoRepoApplyWrites, ComAtprotoRepoCreateRecord, ComAtprotoRepoListRecords } from "@atcute/client/lexicons";
+import type { AppBskyFeedGenerator, At, Brand, ComAtprotoRepoApplyWrites, ComAtprotoRepoListRecords } from "@atcute/client/lexicons";
 import { loginAgent } from "#skyware/labeler/scripts/util.js";
 import { BSKY_IDENTIFIER, BSKY_PASSWORD, DID, FEEDS_DOMAIN } from "../config.js";
 import logger from "../backend/logger.js";
 import { labelDefinitions } from "../utils/label-definitions.js";
 import { credentialManager } from "../backend/session.js";
 import { RichText } from "#skyware/bot";
-import { XRPCError, XRPCResponse } from "@atcute/client";
-import { getFeedRkeyFromLabelIdentifier } from "../utils/feed-helpers.js";
+import type { XRPCResponse } from "@atcute/client";
 
 async function publishFeeds() {
 	const { agent, session } = await loginAgent({

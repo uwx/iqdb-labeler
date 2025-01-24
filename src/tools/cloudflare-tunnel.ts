@@ -1,15 +1,8 @@
 import 'dotenv/config';
 
 import { tunnel } from "cloudflared";
-import { BSKY_IDENTIFIER, BSKY_PASSWORD, METRICS_PORT, PORT } from "../config.js";
-import { plcClearLabeler, plcRequestToken, plcSetupLabeler } from "#skyware/labeler/scripts/index.js";
+import { METRICS_PORT, PORT } from "../config.js";
 import logger from '../backend/logger.js';
-import { XRPCError } from "@atcute/client";
-import { access, readFile, writeFile } from "node:fs/promises";
-import { createInterface } from "node:readline/promises";
-import { secp256k1 as k256 } from "@noble/curves/secp256k1";
-import { fromString as ui8FromString } from "uint8arrays/from-string";
-import { toString as ui8ToString } from "uint8arrays/to-string";
 import { setupTunnel } from '../utils/setup-tunnel.js';
 
 export async function startTunnelAndUpdateLabeler() {
