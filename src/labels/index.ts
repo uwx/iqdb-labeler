@@ -4,7 +4,7 @@ import { BQTag, BQTagAlias, BQTagImplication, BQWikiPage } from './danbooru-quer
 import { db } from '../backend/lmdb.js';
 import logger from '../backend/logger.js';
 import { alphabetToString, alphabetParseInt  } from '../utils/ints.js';
-import { ComAtprotoLabelDefs } from '@atcute/client/lexicons';
+import { ComAtprotoLabelDefs } from '@atcute/atproto';
 
 export const enum TagCategory {
     General = 0,
@@ -285,11 +285,11 @@ export async function *getLabelValueDefinitions() {
 
     const identifiers = new Map<string, Tag>();
 
-    for await (const tag of tags.getRange()
+    for (const tag of await tags.getRange()
         .map(e => e.value)
         .filter(tag => !tag.isDeprecated && tag.postCount && tag.postCount >= 10000 && tag.category !== TagCategory.Meta && (!tag.name || !ignoredTags.has(tag.name)))
         .asArray
-        .sort((a, b) => (b.postCount ?? 0) - (a.postCount ?? 0))
+        .then(e => e.sort((a, b) => (b.postCount ?? 0) - (a.postCount ?? 0)))
     ) {
         logger.debug(`${i++}: ${tag.name ?? tag.id}`);
 

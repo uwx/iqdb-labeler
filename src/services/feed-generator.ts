@@ -1,99 +1,116 @@
-import fastify, { FastifyBaseLogger, FastifyInstance, FastifyRequest } from 'fastify';
-import { XRPCError } from '@atcute/client';
-import { verifyJwt } from '#skyware/labeler/util/crypto.js';
-import { DidDocument } from '@atcute/client/utils/did';
+import { AuthRequiredError, InvalidRequestError, XRPCRouter, json } from '@atcute/xrpc-server';
 import { FEEDS_DOMAIN } from '../config.js';
-import { LabelerServer } from '#skyware/labeler/index.js';
 import { labelDefinitions } from '../utils/label-definitions.js';
-import { AppBskyFeedDefs, AppBskyFeedGetFeedSkeleton } from '@atcute/client/lexicons';
-import fastifyPlugin from 'fastify-plugin';
+import { AppBskyFeedDefs, AppBskyFeedGetFeedSkeleton } from '@atcute/bluesky';
+import { Did, ResourceUri, type Nsid } from '@atcute/lexicons';
+import type { DidDocument } from '@atcute/identity';
 
-async function parseAuthHeaderDid(req: FastifyRequest, ownDid: string): Promise<string> {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) {
-        throw new XRPCError(401, {
-            kind: "AuthRequired",
-            description: "Authorization header is required",
-        });
-    }
+import { ServiceJwtVerifier, type VerifiedJwt } from '@atcute/xrpc-server/auth';
 
-    const [type, token] = authHeader.split(" ");
-    if (type !== "Bearer" || !token) {
-        throw new XRPCError(400, {
-            kind: "MissingJwt",
-            description: "Missing or invalid bearer token",
-        });
-    }
+import {
+	CompositeDidDocumentResolver,
+	PlcDidDocumentResolver,
+	WebDidDocumentResolver,
+} from '@atcute/identity-resolver';
+import { DbProvider } from '../utils/db-provider.ts';
+import { Hono } from 'hono';
 
-    const nsid = (req.originalUrl || req.url || "").split("?")[0].replace("/xrpc/", "").replace(
-        /\/$/,
-        "",
-    );
+const didDocResolver = new CompositeDidDocumentResolver({
+	methods: {
+		plc: new PlcDidDocumentResolver(),
+		web: new WebDidDocumentResolver(),
+	},
+});
 
-    const payload = await verifyJwt(token, ownDid, nsid);
+const SERVICE_DID = `did:web:${FEEDS_DOMAIN}` as Did;
+const jwtVerifier = new ServiceJwtVerifier({
+	serviceDid: SERVICE_DID,
+	resolver: didDocResolver,
+});
 
-    return payload.iss;
+const requireAuth = async (request: Request, lxm: Nsid): Promise<VerifiedJwt> => {
+	const auth = request.headers.get('authorization');
+	if (auth === null) {
+		throw new AuthRequiredError({ description: `missing authorization header` });
+	}
+	if (!auth.startsWith('Bearer ')) {
+		throw new AuthRequiredError({ description: `invalid authorization scheme` });
+	}
+
+	const jwtString = auth.slice('Bearer '.length).trim();
+
+	const result = await jwtVerifier.verify(jwtString, { lxm });
+	if (!result.ok) {
+		throw new AuthRequiredError(result.error);
+	}
+
+	return result.value;
+};
+
+export default function(router: XRPCRouter, labelerDb: DbProvider) {
+    router.addQuery(AppBskyFeedGetFeedSkeleton.mainSchema, {
+        async handler({ params: { feed, limit, cursor }, request }) {
+            await requireAuth(request, 'app.bsky.feed.getFeedSkeleton');
+
+            if (!feed.startsWith("at://")) {
+                throw new InvalidRequestError({
+                    error: 'InvalidFeed',
+                    description: `invalid feed`,
+                });
+            }
+
+
+            const aturi_parts = feed.slice("at://".length).split("/")
+            if (aturi_parts.length != 3) {
+                throw new InvalidRequestError({
+                    error: 'InvalidFeed',
+                    description: `feed must be a valid AT URI`,
+                });
+            }
+
+            const [feed_did, feed_collection, feed_name] = aturi_parts;
+            if (feed_collection != "app.bsky.feed.generator") {
+                throw new InvalidRequestError({
+                    error: 'InvalidFeed',
+                    description: `feed must reference a feed generator record`,
+                });
+            }
+
+            // XXX: I think it would technically be valid for feed_did to be a handle here
+            //if (feed_did != FEED_PUBLISHER_DID):
+            //	return res.code(404).send("we don't host any feeds from that publisher")
+
+            limit ??= 50;
+            const cursorN = cursor ? Number(cursor) : 0;
+
+            if (limit < 1)
+                limit = 1;
+            else if (limit > 100)
+                limit = 100;
+
+            if (!(feed_name in labelDefinitions)) {
+                throw new InvalidRequestError({
+                    error: 'InvalidFeed',
+                    description: `feed does not exist`,
+                });
+            }
+
+            const queryResult = await labelerDb.queryLabels(feed_name, isNaN(cursorN) ? 0 : cursorN, limit);
+
+            return json({
+                feed: queryResult.map(e => ({ post: e.uri as ResourceUri } satisfies AppBskyFeedDefs.SkeletonFeedPost)),
+
+                ...(queryResult.length > 0 ? { cursor: String(Math.max(...queryResult.map(e => e.id))) } : {}),
+            });
+        },
+    });
 }
 
-export default fastifyPlugin((app: FastifyInstance, { labelerServer }: { labelerServer: LabelerServer }, done) => {
-    app.get('/xrpc/app.bsky.feed.getFeedSkeleton', async (req: FastifyRequest<{ Querystring: AppBskyFeedGetFeedSkeleton.Params }>, res) => {
-        const requesterDid = await parseAuthHeaderDid(req, `did:web:${FEEDS_DOMAIN}`);
+export function useDidWeb(hono: Hono) {
 
-        if (!req.query.feed) {
-            await res.code(500).send("no feed specified");
-            return;
-        }
-
-        const feed = req.query["feed"]
-        if (!feed.startsWith("at://")) {
-            await res.code(500).send("feed must be a valid AT URI")
-            return;
-        }
-
-        const aturi_parts = feed.slice("at://".length).split("/")
-        if (aturi_parts.length != 3) {
-            await res.code(500).send("feed must be a valid AT URI")
-            return;
-        }
-
-        const [feed_did, feed_collection, feed_name] = aturi_parts;
-        if (feed_collection != "app.bsky.feed.generator") {
-            await res.code(500).send("feed must reference a feed generator record")
-            return;
-        }
-
-        // XXX: I think it would technically be valid for feed_did to be a handle here
-        //if (feed_did != FEED_PUBLISHER_DID):
-        //	return res.code(404).send("we don't host any feeds from that publisher")
-
-        let limit = req.query.limit ?? 50;
-        const cursor = req.query.cursor ? Number(req.query.cursor) : 0;
-
-        if (limit < 1)
-            limit = 1;
-        else if (limit > 100)
-            limit = 100;
-
-        if (!(feed_name in labelDefinitions)) {
-            await res.code(404).send("feed does not exist");
-            return;
-        }
-
-        const queryResult = await labelerServer.queryLabels(feed_name, isNaN(cursor) ? 0 : cursor, limit);
-
-        const obj: AppBskyFeedGetFeedSkeleton.Output = {
-            feed: queryResult.map(e => ({ post: e.uri } satisfies AppBskyFeedDefs.SkeletonFeedPost)),
-        };
-
-        if (queryResult.length > 0) {
-            obj.cursor = ''+Math.max(...queryResult.map(e => e.id));
-        }
-
-        await res.code(200).send(obj);
-    });
-
-    app.get('/.well-known/did.json', async (req, res) => {
-        await res.code(200).send({
+    hono.get('/.well-known/did.json', async (c) => {
+        c.status(200);
+        c.json({
             '@context': ['https://www.w3.org/ns/did/v1'],
             id: `did:web:${FEEDS_DOMAIN}`,
             service: [
@@ -105,6 +122,4 @@ export default fastifyPlugin((app: FastifyInstance, { labelerServer }: { labeler
             ],
         } satisfies DidDocument & { '@context': [string] });
     });
-
-    done();
-});
+}

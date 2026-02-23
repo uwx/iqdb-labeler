@@ -40,15 +40,15 @@ function ivAndCiphertextToString({iv, ciphertext}: { iv: ArrayBuffer, ciphertext
 }
 
 export async function aesDecrypt(encrypted: string): Promise<string>;
-export async function aesDecrypt(ciphertext: BufferSource, iv: BufferSource): Promise<string>;
-export async function aesDecrypt(ciphertextOrEncrypted: BufferSource | string, iv?: BufferSource) {
+export async function aesDecrypt(ciphertext: Uint8Array<ArrayBuffer>, iv: Uint8Array<ArrayBuffer>): Promise<string>;
+export async function aesDecrypt(ciphertextOrEncrypted: Uint8Array<ArrayBuffer> | string, iv?: Uint8Array<ArrayBuffer>) {
     if (typeof ciphertextOrEncrypted === 'string') {
         const [parsedCiphertext, parsedIv] = JSON.parse(ciphertextOrEncrypted);
-        [ciphertextOrEncrypted, iv] = [ui8FromString(parsedCiphertext, 'base64'), ui8FromString(parsedIv, 'base64')];
+        [ciphertextOrEncrypted, iv] = [ui8FromString(parsedCiphertext, 'base64') as Uint8Array<ArrayBuffer>, ui8FromString(parsedIv, 'base64') as Uint8Array<ArrayBuffer>];
     }
 
     const dec = new TextDecoder();
-    const plaintext = await crypto.subtle.decrypt({
+    const plaintext = await webcrypto.subtle.decrypt({
       name: 'AES-CBC',
       iv,
     }, key, ciphertextOrEncrypted);

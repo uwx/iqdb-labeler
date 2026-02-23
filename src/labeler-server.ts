@@ -1,84 +1,105 @@
 import metricsServer from './services/metrics.js';
-import { DID, PORT, SIGNING_KEY } from './config.js';
-import { labelerServerPlugin, labelerServerKey } from '#skyware/labeler/index.js';
+import { DB_PATH, DID, PORT, SIGNING_KEY } from './config.js';
 import logger from './backend/logger.js';
-import fastify, { FastifyBaseLogger, FastifyError, FastifyReply, FastifyRequest } from 'fastify';
-import feedGenerator from './services/feed-generator.js';
-import { XRPCError } from '@atcute/client';
+import feedGenerator, { useDidWeb } from './services/feed-generator.js';
 import { aesDecrypt } from './backend/crypto.js';
-import { BotLabelRecordOptions } from '#skyware/bot';
-import { fastifyWebsocket } from "@fastify/websocket";
-import { LmdbDbProvider } from './utils/lmdb-skyware-db-provider.js';
-import { db } from './backend/lmdb.js';
+import { serve } from '@hono/node-server';
+import { XRPCRouter } from '@atcute/xrpc-server';
+import { createNodeWebSocket } from '@atcute/xrpc-server-node';
+import { Hono } from 'hono';
+import { cors } from '@atcute/xrpc-server/middlewares/cors';
+import { ComAtprotoRepoStrongRef } from '@atcute/atproto';
+import { SqliteDbProvider } from './utils/nodesqlite-db-provider.ts';
+import { P256PrivateKey } from '@atcute/crypto';
+import { Labeler } from './labeler/index.ts';
+import { DbLabelStore } from './utils/db-label-store.ts';
 
-const app = fastify({
-    logger: logger as FastifyBaseLogger
+const labelerDb = new SqliteDbProvider(DB_PATH);
+
+const labeler = new Labeler({
+	serviceDid: DID,
+	signingKey: await P256PrivateKey.importRaw(Buffer.from(SIGNING_KEY, 'hex')),
+	store: new DbLabelStore(labelerDb),
 });
 
-// needs to be registered before all other routes because of fastifyWebsocket...
-await app.register(fastifyWebsocket);
+const { adapter, injectWebSocket } = createNodeWebSocket();
+const router = new XRPCRouter({
+    websocket: adapter,
+    middlewares: [cors()],
+});
 
-await app.register(labelerServerPlugin, { did: DID, signingKey: SIGNING_KEY, db: new LmdbDbProvider(db) });
-export const labelerServer = app[labelerServerKey];
+const labelerServer = new Hono();
 
-await app.register(metricsServer);
+labelerServer.mount('/xrpc/*', router.fetch);
 
-await app.register(feedGenerator, { labelerServer });
+metricsServer(labelerServer);
 
-/**
- * Catch-all handler for unknown XRPC methods.
- */
-async function unknownMethodHandler(_req: FastifyRequest, res: FastifyReply) {
-    return await res.status(501).send({ error: "MethodNotImplemented", message: "Method Not Implemented" });
+feedGenerator(router, labelerDb); // TODO
+useDidWeb(labelerServer);
+
+export interface BotLabelRecordOptions {
+	/**
+	 * A reference to the record to label.
+	 */
+	reference: ComAtprotoRepoStrongRef.Main;
+
+	/**
+	 * The labels to apply.
+	 */
+	labels: Array<string>;
+
+	/**
+	 * The CIDs of specific blobs within the record that the labels apply to, if any.
+	 */
+	blobCids?: Array<string> | undefined;
+
+	/**
+	 * An optional comment.
+	 */
+	comment?: string | undefined;
 }
 
-/**
- * Default error handler.
- */
-async function errorHandler(err: FastifyError, _req: FastifyRequest, res: FastifyReply) {
-    if (err instanceof XRPCError) {
-        return await res.status(err.status).send({ error: err.kind, message: err.description });
-    } else {
-        console.error(err);
-        return await res.status(500).send({
-            error: "InternalServerError",
-            message: "An unknown error occurred",
-        });
-    }
-}
-
-app.post('/label', async (req: FastifyRequest<{ Body: string }>, res) => {
-    const decryptedBody: BotLabelRecordOptions = JSON.parse(await aesDecrypt(req.body));
+labelerServer.post('/label', async c => {
+    const decryptedBody: BotLabelRecordOptions = JSON.parse(await aesDecrypt(await c.req.text()));
 
     if (!('uri' in decryptedBody.reference)) {
-        return await res.code(400).send('No URI');
+        return c.text('No URI', 400);
     }
 
-    const labels = await labelerServer.createLabels(
-        decryptedBody.reference,
-        {
-            create: decryptedBody.labels
-        },
+    const labels = await labeler.applyLabels(
+        decryptedBody.labels.map(label => {
+            return {
+                uri: decryptedBody.reference.uri,
+                cid: decryptedBody.reference.cid,
+                value: label,
+                issuedAt: new Date().toISOString(),
+            };
+        })
     );
 
-    return await res.code(200).send(labels);
+    return c.json(labels, 200);
+});
+
+labelerServer.get('/robots.txt', c => {
+    return c.text('User-agent: *\nDisallow: /', 200);
 })
 
-app.get("/xrpc/*", unknownMethodHandler);
+const server = serve(
+    {
+        fetch: labelerServer.fetch,
+        port: PORT,
+    },
+    (info) => {
+        logger.info(`Labeler server listening on ${server.address()}`);
+    },
+);
 
-app.get('/robots.txt', async (req, res) => {
-    return await res.code(200).send(['User-agent: *', 'Disallow: /'].join('\n'));
-})
-
-app.setErrorHandler(errorHandler);
-
-const address = await app.listen({ port: PORT });
-logger.info(`Labeler server listening on ${address}`);
+injectWebSocket(server, router);
 
 function shutdown() {
     try {
         logger.info('Shutting down gracefully...');
-        app.close();
+        server.close();
     } catch (error) {
         logger.error(`Error shutting down gracefully: ${error}`);
         process.exit(1);

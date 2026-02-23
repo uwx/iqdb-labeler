@@ -12,7 +12,7 @@ import { getDbConfigItem, setDbConfigItem } from './utils/db-config.js';
 import { db } from './backend/lmdb.js';
 
 let cursor = 0;
-let cursorUpdateInterval: NodeJS.Timeout;
+let cursorUpdateInterval: NodeJS.Timeout | Timer;
 
 function epochUsToDateTime(cursor: number): string {
     return new Date(cursor / 1000).toISOString();
@@ -42,7 +42,7 @@ const jetstream = new Jetstream({
     ],
     endpoint: FIREHOSE_URL,
     cursor: cursor,
-    ws: ws
+    ws: typeof Bun === 'undefined' ? ws : undefined
 });
 
 jetstream.on('open', () => {
@@ -136,6 +136,8 @@ jetstream.onCreate('app.bsky.feed.post', async (event) => {
 });
 
 jetstream.start();
+if (typeof Bun !== 'undefined')
+    jetstream.ws!.binaryType = 'arraybuffer';
 
 function shutdown() {
     try {
