@@ -1,4 +1,4 @@
-import { BSKY_IDENTIFIER, BSKY_PASSWORD } from '../config.js';
+import { BSKY_IDENTIFIER, BSKY_PASSWORD,PDS } from '../config.js';
 import { getLabelValueDefinitions, injectDanbooruTags } from '../labels/index.js';
 import logger from '../backend/logger.js';
 import { arrayFromAsync } from '../utils.js';
@@ -6,6 +6,7 @@ import { LoginCredentials } from './util/index.js';
 import { setLabelerLabelDefinitions } from './util/declareLabeler.js';
 
 const loginCredentials: LoginCredentials = {
+    pds: PDS,
     identifier: BSKY_IDENTIFIER,
     password: BSKY_PASSWORD
 };
