@@ -88,136 +88,131 @@ for await (const event of jetstream) {
         break;
     }
 
-    if (event.kind === 'commit') {
-        const did = event.did;
-		const commit = event.commit;
-        const rkey = commit.rkey;
+    try {
+        if (event.kind === 'commit') {
+            const did = event.did;
+            const commit = event.commit;
+            const rkey = commit.rkey;
 
-        if (commit.operation === 'create') {
-            const cid = commit.cid;
-            const record = commit.record;
-            
-            if (commit.collection === 'app.bsky.graph.follow') {
-                if (!is(AppBskyGraphFollow.mainSchema, record)) {
-                    logger.warn(`Received invalid follow record: at://${did}/app.bsky.graph.follow/${rkey}`);
-                    continue;
-                }
-
-                // const uri = `at://${did}/app.bsky.graph.follow/${rkey}`;
-                if (record.subject === DID) {
-                    logger.debug(`Followed by ${did}`);
-                    await db
-                        .insertInto('followers')
-                        .values({ did, rkey })
-                        .onConflict((oc) => oc.column('did').doUpdateSet({ rkey }))
-                        .execute()
-                        .catch((error: unknown) => {
-                            logger.error(`Unexpected error inserting follower ${did}: ${error}`);
-                        });
-
-                    // this.emit("follow", { user: await bot.getProfile(did), uri });
-                }
-            }
-
-            if (commit.collection === 'app.bsky.feed.like') {
-                if (!is(AppBskyFeedLike.mainSchema, record)) {
-                    logger.warn(`Received invalid like record: at://${did}/app.bsky.feed.like/${rkey}`);
-                    continue;
-                }
+            if (commit.operation === 'create') {
+                const cid = commit.cid;
+                const record = commit.record;
                 
-                if (record.subject.uri == `at://${DID}/app.bsky.labeler.service/self`) {
-                    logger.debug(`Liked by ${did}`);
+                if (commit.collection === 'app.bsky.graph.follow') {
+                    const subject = (record as AppBskyGraphFollow.Main)?.subject;
+
+                    // const uri = `at://${did}/app.bsky.graph.follow/${rkey}`;
+                    if (subject === DID) {
+                        logger.debug(`Followed by ${did}`);
+                        await db
+                            .insertInto('followers')
+                            .values({ did, rkey })
+                            .onConflict((oc) => oc.column('did').doUpdateSet({ rkey }))
+                            .execute()
+                            .catch((error: unknown) => {
+                                logger.error(`Unexpected error inserting follower ${did}: ${error}`);
+                            });
+
+                        // this.emit("follow", { user: await bot.getProfile(did), uri });
+                    }
+                }
+
+                if (commit.collection === 'app.bsky.feed.like') {
+                    const uri = (record as AppBskyFeedLike.Main)?.subject?.uri;
+
+                    if (uri) {
+                        if (uri == `at://${DID}/app.bsky.labeler.service/self`) {
+                            logger.debug(`Liked by ${did}`);
+
+                            await db
+                                .insertInto('likers')
+                                .values({ did, rkey })
+                                .onConflict((oc) => oc.column('did').doUpdateSet({ rkey }))
+                                .execute()
+                                .catch((error: unknown) => {
+                                    logger.error(`Unexpected error inserting liker ${did}: ${error}`);
+                                });
+                        }
+
+                        await db
+                            .selectFrom('followers')
+                            .selectAll()
+                            .unionAll((eb) =>
+                                eb
+                                    .selectFrom('likers')
+                                    .selectAll()
+                            )
+                            .where('did', '=', did)
+                            .executeTakeFirst()
+                            .then(async result => {
+                                if (result) {
+                                    await labelPost(uri).catch((error: unknown) => {
+                                        logger.error(error, `Unexpected error labeling ${uri}: ${error}`);
+                                    });
+                                }
+                            });
+                    }
+                }
+
+                if (commit.collection === 'app.bsky.feed.post') {
+                    const uri = `at://${did}/app.bsky.feed.post/${rkey}`;
 
                     await db
-                        .insertInto('likers')
-                        .values({ did, rkey })
-                        .onConflict((oc) => oc.column('did').doUpdateSet({ rkey }))
+                        .selectFrom('followers')
+                        .selectAll()
+                        .unionAll((eb) =>
+                            eb
+                                .selectFrom('likers')
+                                .selectAll()
+                        )
+                        .where('did', '=', did)
+                        .executeTakeFirst()
+                        .then(async result => {
+                            if (result || labelAnything) {
+                                await labelPost({
+                                    ...record,
+                                    uri,
+                                    cid
+                                }).catch((error: unknown) => {
+                                    logger.error(error, `Unexpected error labeling ${uri}: ${error}`);
+                                });
+                            }
+                        });
+                }
+            } else if (commit.operation === 'delete') {
+                if (commit.collection === 'app.bsky.graph.follow') {
+                    await db
+                        .deleteFrom('followers')
+                        .where('rkey', '=', rkey)
                         .execute()
+                        .then((result) => {
+                            if (result[0].numDeletedRows > 0) {
+                                logger.debug(`Unfollowed by ${did}`);
+                            }
+                        })
                         .catch((error: unknown) => {
-                            logger.error(`Unexpected error inserting liker ${did}: ${error}`);
+                            logger.error(`Unexpected error deleting follower ${did}: ${error}`);
                         });
                 }
 
-                await db
-                    .selectFrom('followers')
-                    .selectAll()
-                    .unionAll((eb) =>
-                        eb
-                            .selectFrom('likers')
-                            .selectAll()
-                    )
-                    .where('did', '=', did)
-                    .executeTakeFirst()
-                    .then(async result => {
-                        if (result) {
-                            await labelPost(record.subject.uri).catch((error: unknown) => {
-                                logger.error(error, `Unexpected error labeling ${record.subject.uri}: ${error}`);
-                            });
-                        }
-                    });
-            }
-
-            if (commit.collection === 'app.bsky.feed.post') {
-                if (!is(AppBskyFeedPost.mainSchema, record)) {
-                    logger.warn(`Received invalid post record: at://${did}/app.bsky.feed.post/${rkey}`);
-                    continue;
+                if (commit.collection === 'app.bsky.feed.like') {
+                    await db
+                        .deleteFrom('likers')
+                        .where('rkey', '=', rkey)
+                        .execute()
+                        .then((result) => {
+                            if (result[0].numDeletedRows > 0) {
+                                logger.debug(`Un-liked by ${did}`);
+                            }
+                        })
+                        .catch((error: unknown) => {
+                            logger.error(`Unexpected error deleting liker ${did}: ${error}`);
+                        });
                 }
-                
-                const uri = `at://${did}/app.bsky.feed.post/${rkey}`;
-
-                await db
-                    .selectFrom('followers')
-                    .selectAll()
-                    .unionAll((eb) =>
-                        eb
-                            .selectFrom('likers')
-                            .selectAll()
-                    )
-                    .where('did', '=', did)
-                    .executeTakeFirst()
-                    .then(async result => {
-                        if (result || labelAnything) {
-                            await labelPost({
-                                ...record,
-                                uri,
-                                cid
-                            }).catch((error: unknown) => {
-                                logger.error(error, `Unexpected error labeling ${uri}: ${error}`);
-                            });
-                        }
-                    });
-            }
-        } else if (commit.operation === 'delete') {
-            if (commit.collection === 'app.bsky.graph.follow') {
-                await db
-                    .deleteFrom('followers')
-                    .where('rkey', '=', rkey)
-                    .execute()
-                    .then((result) => {
-                        if (result[0].numDeletedRows > 0) {
-                            logger.debug(`Unfollowed by ${did}`);
-                        }
-                    })
-                    .catch((error: unknown) => {
-                        logger.error(`Unexpected error deleting follower ${did}: ${error}`);
-                    });
-            }
-
-            if (commit.collection === 'app.bsky.feed.like') {
-                await db
-                    .deleteFrom('likers')
-                    .where('rkey', '=', rkey)
-                    .execute()
-                    .then((result) => {
-                        if (result[0].numDeletedRows > 0) {
-                            logger.debug(`Un-liked by ${did}`);
-                        }
-                    })
-                    .catch((error: unknown) => {
-                        logger.error(`Unexpected error deleting liker ${did}: ${error}`);
-                    });
             }
         }
+    } catch (error) {
+        logger.error(error, `Unexpected error processing event: ${error}`);
     }
 }
 

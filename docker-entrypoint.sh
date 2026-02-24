@@ -1,10 +1,10 @@
 #!/bin/bash
 set -e
 
-node out/server.ts &
+node out/server.js &
 SERVER_PID=$!
 
-node out/client.ts &
+node out/client.js &
 CLIENT_PID=$!
 
 # Exit as soon as either process exits

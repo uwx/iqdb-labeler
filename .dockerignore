@@ -6,3 +6,8 @@ out
 *.mp
 cursor.txt
 danbooru-data
+models
+*.db
+*.db-shm
+*.db-wal
+*.mp

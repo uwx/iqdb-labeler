@@ -27,3 +27,4 @@ bun.lockb
 /.stfolder
 /out
 /models/model.onnx
+/.stignore
