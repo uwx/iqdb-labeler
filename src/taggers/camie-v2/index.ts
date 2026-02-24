@@ -88,6 +88,11 @@ async function modelLoad(modelDir = './models') {
         graphOptimizationLevel: 'all',
         executionProviders: [{
             name: 'dml'
+        }, {
+            name: 'cuda'
+        }, {
+            name: 'cpu',
+            useArena: true,
         }]
     });
 }
