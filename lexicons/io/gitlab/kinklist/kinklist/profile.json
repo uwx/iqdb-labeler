@@ -1,0 +1,135 @@
+{
+  "lexicon": 1,
+  "id": "io.gitlab.kinklist.kinklist.profile",
+  "defs": {
+    "main": {
+      "type": "record",
+      "key": "literal:self",
+      "record": {
+        "type": "object",
+        "properties": {
+          "kinkDefinitions": {
+            "type": "array",
+            "items": {
+              "type": "ref",
+              "ref": "#kinkCategory"
+            },
+            "description": "Array of kink category/section definitions"
+          },
+          "kinks": {
+            "type": "array",
+            "items": {
+              "type": "ref",
+              "ref": "#kinkEntry"
+            },
+            "description": "Array of kink preferences"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "When this profile was created"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "When this profile was last updated"
+          }
+        },
+        "required": [
+          "kinks",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "description": "My kink list profile."
+    },
+    "kinkCategory": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The category/section name (e.g., \"General\", \"Taboo\", \"Bodies\")"
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the category/section (e.g., \"General kinks\", \"Taboo kinks\", \"Bodies kinks\")"
+        },
+        "kinks": {
+          "type": "array",
+          "items": {
+            "type": "ref",
+            "ref": "#kinkDefinition"
+          },
+          "description": "Array of kink definitions"
+        },
+        "participants": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Array of participant types (e.g., \"Self\", \"Partner\", \"Giving\", \"Receiving\")"
+        }
+      },
+      "description": "A category/section definition of kinks, containing multiple kink entries",
+      "required": [
+        "name",
+        "kinks",
+        "participants"
+      ]
+    },
+    "kinkDefinition": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the kink (e.g., \"Bondage\", \"Voyeurism\")"
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the kink (e.g., \"Restraining or being restrained\", \"Watching others engage in sexual activities\")"
+        }
+      },
+      "description": "A single kink definition within a category, describing the kink and its possible preferences",
+      "required": [
+        "name"
+      ]
+    },
+    "kinkEntry": {
+      "type": "object",
+      "properties": {
+        "section": {
+          "type": "string",
+          "description": "The category/section this kink belongs to (e.g., \"General\", \"Taboo\", \"Bodies\")"
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the kink (e.g., \"Bondage\", \"Voyeurism\")"
+        },
+        "participant": {
+          "type": "string",
+          "description": "The participant type (e.g., \"Self\", \"Partner\", \"Giving\", \"Receiving\")"
+        },
+        "choice": {
+          "type": "string",
+          "enum": [
+            "favorite",
+            "like",
+            "okay",
+            "maybe",
+            "no",
+            "not-entered",
+            "want-to-try"
+          ],
+          "description": "The preference choice for this kink"
+        }
+      },
+      "description": "A single kink entry with preferences",
+      "required": [
+        "section",
+        "name",
+        "participant",
+        "choice"
+      ]
+    }
+  }
+}

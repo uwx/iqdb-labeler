@@ -1,6 +1,6 @@
 import { JetstreamSubscription } from '@atcute/jetstream';
 import fs from 'node:fs';
-import ws from 'ws';
+import type { BlueMicrocosmLinksGetBacklinks } from './lexicons/index.js';
 
 import { CURSOR_UPDATE_INTERVAL, DB_PATH, DID, FIREHOSE_URL } from './config.js';
 import { labelPost } from './backend/label.js';
@@ -11,6 +11,8 @@ import { getDbConfigItem, setDbConfigItem } from './utils/db-config.js';
 import { createDb,migrateToLatest } from './backend/kysely/index.js';
 import { is } from '@atcute/lexicons';
 import { AppBskyFeedLike, AppBskyFeedPost, AppBskyGraphFollow } from '@atcute/bluesky';
+import { KittyAgent } from 'kitty-agent';
+import { ClientResponse } from '@atcute/client';
 
 const db = createDb(DB_PATH);
 
@@ -59,6 +61,76 @@ if (process.argv.includes('--label-anything')) {
     labelAnything = true;
     logger.info('Labeling anything that comes in, regardless of followers/likers');
 }
+
+logger.info('Hydrating followers and likers into database...');
+{
+    const agent = KittyAgent.createAppview('https://constellation.microcosm.blue/');
+
+    // followers
+    {
+        let cursor: string | undefined = undefined;
+        do {
+            const response: ClientResponse<BlueMicrocosmLinksGetBacklinks.mainSchema, { params: { subject: `did:${string}:${string}`; source: string; }; }> = await agent.get('blue.microcosm.links.getBacklinks', {
+                params: {
+                    subject: DID,
+                    source: 'app.bsky.graph.follow:subject',
+                    cursor: cursor,
+                }
+            });
+
+            if (!response.ok) {
+                logger.error(response.data, `Failed to fetch followers: ${response.status}`);
+                break;
+            } else {
+                const followers = response.data.records.map(link => ({ did: link.did, rkey: link.rkey }));
+                if (followers.length > 0) {
+                    await db
+                        .insertInto('followers')
+                        .values(followers)
+                        .onConflict((oc) => oc.column('did').doUpdateSet(eb => ({ rkey: eb.ref('excluded.rkey') })))
+                        .execute()
+                        .catch((error: unknown) => {
+                            logger.error(`Unexpected error inserting followers: ${error}`);
+                        });
+                }
+                cursor = response.data.cursor;
+            }
+        } while (cursor);
+    }
+
+    // likers
+    {
+        let cursor: string | undefined = undefined;
+        do {
+            const response: ClientResponse<BlueMicrocosmLinksGetBacklinks.mainSchema, { params: { subject: `at://${string}/app.bsky.labeler.service/self`; source: string; }; }> = await agent.get('blue.microcosm.links.getBacklinks', {
+                params: {
+                    subject: `at://${DID}/app.bsky.labeler.service/self`,
+                    source: 'app.bsky.feed.like:subject.uri',
+                    cursor: cursor,
+                }
+            });
+
+            if (!response.ok) {
+                logger.error(response.data, `Failed to fetch likers: ${response.status}`);
+                break;
+            } else {
+                const likers = response.data.records.map(link => ({ did: link.did, rkey: link.rkey }));
+                if (likers.length > 0) {
+                    await db
+                        .insertInto('likers')
+                        .values(likers)
+                        .onConflict((oc) => oc.column('did').doUpdateSet(eb => ({ rkey: eb.ref('excluded.rkey') })))
+                        .execute()
+                        .catch((error: unknown) => {
+                            logger.error(`Unexpected error inserting likers: ${error}`);
+                        });
+                }
+                cursor = response.data.cursor;
+            }
+        } while (cursor);
+    }
+}
+logger.info('Hydrated followers and likers into database.');
 
 const jetstream = new JetstreamSubscription({
     wantedCollections: [
@@ -151,6 +223,8 @@ for await (const event of jetstream) {
                                     });
                                 }
                             });
+                    } else {
+                        logger.warn(record, `Like record missing subject.uri`);
                     }
                 }
 
@@ -170,7 +244,7 @@ for await (const event of jetstream) {
                         .then(async result => {
                             if (result || labelAnything) {
                                 await labelPost({
-                                    ...record,
+                                    ...(record as AppBskyFeedPost.Main),
                                     uri,
                                     cid
                                 }).catch((error: unknown) => {

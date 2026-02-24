@@ -4,6 +4,7 @@
     "type": "module",
     "scripts": {
         "build": "pnpx rolldown -c rolldown.config.js",
+        "build:lex": "lex-cli generate",
         "start-server": "node out/server.ts",
         "start-client": "node out/client.ts",
         "format": "prettier --write .",
@@ -22,6 +23,7 @@
         "#skyware/labeler/*.js": "./src/@skyware/labeler/src/*.js"
     },
     "devDependencies": {
+        "@atcute/lex-cli": "^2.5.3",
         "@eslint/js": "^10.0.1",
         "@trivago/prettier-plugin-sort-imports": "^6.0.2",
         "@types/better-sqlite3": "^7.6.13",

@@ -1,0 +1,33 @@
+{
+  "lexicon": 1,
+  "id": "io.gitlab.kinklist.kinklist.list",
+  "defs": {
+    "main": {
+      "type": "record",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "properties": {
+          "kinkDefinitions": {
+            "type": "array",
+            "items": {
+              "type": "ref",
+              "ref": "io.gitlab.kinklist.kinklist.profile#kinkCategory"
+            },
+            "description": "Array of kink category/section definitions"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "When this list was created"
+          }
+        },
+        "required": [
+          "kinkDefinitions",
+          "createdAt"
+        ]
+      },
+      "description": "A shared kink list"
+    }
+  }
+}
