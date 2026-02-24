@@ -1,12 +1,10 @@
-import { BSKY_IDENTIFIER, BSKY_PASSWORD } from "../config.js";
-import { getLabelerLabelDefinitions } from "#skyware/labeler/scripts/index.js";
-import { credentialManager } from "../backend/session.js";
+import { BSKY_IDENTIFIER, PDS } from "../config.js";
+import { getLabelerLabelDefinitions } from "../tools/util/declareLabeler.js";
 
 /**
  * The currently defined label definitions for this bot.
  */
 export const labelDefinitions = Object.fromEntries((await getLabelerLabelDefinitions({
     identifier: BSKY_IDENTIFIER,
-    password: BSKY_PASSWORD,
-    credentialManager
+    pds: PDS
 }))!.map(labelDef => [labelDef.identifier, labelDef]));

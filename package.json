@@ -41,6 +41,7 @@
     "dependencies": {
         "@atcute/atproto": "^3.1.10",
         "@atcute/bluesky": "^3.2.18",
+        "@atcute/bluesky-richtext-builder": "^2.0.5",
         "@atcute/cbor": "^2.3.2",
         "@atcute/client": "^4.2.1",
         "@atcute/crypto": "^2.3.0",
@@ -49,6 +50,7 @@
         "@atcute/lexicons": "^1.2.9",
         "@atcute/xrpc-server": "^0.1.10",
         "@atcute/xrpc-server-node": "^0.1.0",
+        "@atproto/syntax": "^0.4.3",
         "@fastify/websocket": "^11.2.0",
         "@google-cloud/bigquery": "^8.1.1",
         "@gradio/client": "^2.0.4",

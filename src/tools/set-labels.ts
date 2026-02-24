@@ -1,15 +1,13 @@
-import { type LoginCredentials, setLabelerLabelDefinitions } from '#skyware/labeler/scripts/index.js';
-
 import { BSKY_IDENTIFIER, BSKY_PASSWORD } from '../config.js';
 import { getLabelValueDefinitions, injectDanbooruTags } from '../labels/index.js';
 import logger from '../backend/logger.js';
-import { credentialManager } from '../session.js';
 import { arrayFromAsync } from '../utils.js';
+import { LoginCredentials } from './util/index.js';
+import { setLabelerLabelDefinitions } from './util/declareLabeler.js';
 
 const loginCredentials: LoginCredentials = {
     identifier: BSKY_IDENTIFIER,
-    password: BSKY_PASSWORD,
-    credentialManager
+    password: BSKY_PASSWORD
 };
 
 if (process.argv.slice(2).includes('--inject-danbooru-tags')) {

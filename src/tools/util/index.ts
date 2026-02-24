@@ -1,4 +1,5 @@
 import { AtpSessionData, CredentialManager, Client } from "@atcute/client";
+import { KittyAgent } from "kitty-agent";
 
 export interface LoginCredentials {
 	/** The URL of the PDS where the account is located. Defaults to "https://bsky.social". */
@@ -14,14 +15,14 @@ export interface LoginCredentials {
 	credentialManager?: CredentialManager;
 }
 
-let xrpc: Client | undefined;
+let xrpc: KittyAgent | undefined;
 let credentialManager: CredentialManager | undefined;
 
 export async function loginAgent(
 	{ pds, ...credentials }: LoginCredentials,
-): Promise<{ agent: Client; session: AtpSessionData }> {
+): Promise<{ agent: KittyAgent; session: AtpSessionData }> {
 	credentialManager ??= credentials.credentialManager ?? new CredentialManager({ service: pds || "https://bsky.social" });
-	xrpc ??= new Client({ handler: credentialManager });
+	xrpc ??= new KittyAgent({ handler: credentialManager });
 
 	if (
 		credentialManager.session && credentialsMatchSession(credentials, credentialManager.session)

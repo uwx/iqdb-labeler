@@ -15,6 +15,7 @@ export const BACKEND_DOMAIN = process.env.BACKEND_DOMAIN ?? `127.0.0.1:${PORT}`;
 export const LABELER_PASSWORD = process.env.LABELER_PASSWORD ?? 'hackme';
 export const LABELER_SALT = process.env.LABELER_SALT ?? 'hackme';
 export const DB_PATH = process.env.DB_PATH ?? 'labels.db';
+export const PDS = process.env.PDS ?? 'https://bsky.social';
 
 if (!FEEDS_DOMAIN || !BSKY_IDENTIFIER || !BSKY_PASSWORD || !DID || !SIGNING_KEY) {
     throw new Error('Environment is misconfigured. Please modify .env');

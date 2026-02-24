@@ -14,6 +14,9 @@ importers:
       '@atcute/bluesky':
         specifier: ^3.2.18
         version: 3.2.18
+      '@atcute/bluesky-richtext-builder':
+        specifier: ^2.0.5
+        version: 2.0.5
       '@atcute/cbor':
         specifier: ^2.3.2
         version: 2.3.2
@@ -38,6 +41,9 @@ importers:
       '@atcute/xrpc-server-node':
         specifier: ^0.1.0
         version: 0.1.0(@atcute/xrpc-server@0.1.10)(bufferutil@4.0.8)
+      '@atproto/syntax':
+        specifier: ^0.4.3
+        version: 0.4.3
       '@fastify/websocket':
         specifier: ^11.2.0
         version: 11.2.0(bufferutil@4.0.8)
@@ -231,6 +237,9 @@ packages:
 
   '@atcute/atproto@3.1.10':
     resolution: {integrity: sha512-+GKZpOc0PJcdWMQEkTfg/rSNDAAHxmAUGBl60g2az15etqJn5WaUPNGFE2sB7hKpwi5Ue2h/L0OacINcE/JDDQ==}
+
+  '@atcute/bluesky-richtext-builder@2.0.5':
+    resolution: {integrity: sha512-74VcYnq0MIWb9GegSYmxfFMYWSDn4fqh0R3d9ofzgav0gVFGPmXDm4Hf4cuOYGv9pz0/4sdJDqb0gamzxvOXGQ==}
 
   '@atcute/bluesky@3.2.18':
     resolution: {integrity: sha512-8S4D0YMUUtvZFchBpEEkvIk7luMu0Z3l50ppUa+EGDDNqF6P5gkgm8q0qfaqpULtDyInKHR+MqJ8fMm20xWgFg==}
@@ -3181,6 +3190,12 @@ snapshots:
   '@atcute/atproto@3.1.10':
     dependencies:
       '@atcute/lexicons': 1.2.9
+
+  '@atcute/bluesky-richtext-builder@2.0.5':
+    dependencies:
+      '@atcute/bluesky': 3.2.18
+      '@atcute/lexicons': 1.2.9
+      '@atcute/uint8array': 1.1.1
 
   '@atcute/bluesky@3.2.18':
     dependencies:
