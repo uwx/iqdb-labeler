@@ -5,6 +5,7 @@ export default defineConfig({
         client: 'src/labeler-client.ts',
         server: 'src/labeler-server.ts',
         'publish-feeds': 'src/tools/publish-feeds.ts',
+        'set-labels': 'src/tools/set-labels.ts',
     },
     platform: 'node',
     external: [
