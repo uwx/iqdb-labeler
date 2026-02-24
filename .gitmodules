@@ -1,6 +1,0 @@
-[submodule "extern/DeepDanbooru"]
-	path = extern/DeepDanbooru
-	url = https://github.com/KichangKim/DeepDanbooru
-[submodule "extern/TorchDeepDanbooru"]
-	path = extern/TorchDeepDanbooru
-	url = https://github.com/AUTOMATIC1111/TorchDeepDanbooru
