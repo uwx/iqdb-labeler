@@ -34,7 +34,7 @@ export class LabelerOutbox {
 		this.#store = store;
 		this.#events = events;
 		this.#pageSize = options.pageSize;
-		this.#maxBufferSize = Math.max(1, options.maxBufferSize ?? 64);
+		this.#maxBufferSize = Math.max(1, options.maxBufferSize ?? 512);
 	}
 
 	async *events(backfillCursor: number | undefined, signal: AbortSignal): AsyncIterableIterator<LabelEvent> {
