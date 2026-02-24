@@ -39,8 +39,8 @@ importers:
         specifier: ^0.1.10
         version: 0.1.10
       '@atcute/xrpc-server-node':
-        specifier: ^0.1.0
-        version: 0.1.0(@atcute/xrpc-server@0.1.10)(bufferutil@4.0.8)
+        specifier: ^0.1.1
+        version: 0.1.1(@atcute/xrpc-server@0.1.10)(bufferutil@4.0.8)
       '@atproto/syntax':
         specifier: ^0.4.3
         version: 0.4.3
@@ -80,6 +80,12 @@ importers:
       cloudflared:
         specifier: ^0.7.1
         version: 0.7.1
+      colorette:
+        specifier: ^2.0.20
+        version: 2.0.20
+      dateformat:
+        specifier: ^5.0.3
+        version: 5.0.3
       dotenv:
         specifier: ^17.3.1
         version: 17.3.1
@@ -89,6 +95,9 @@ importers:
       express:
         specifier: ^5.2.1
         version: 5.2.1
+      fast-copy:
+        specifier: ^4.0.2
+        version: 4.0.2
       fast-xml-parser:
         specifier: ^5.3.7
         version: 5.3.7
@@ -143,6 +152,9 @@ importers:
       node-resolve-ts:
         specifier: ^1.0.2
         version: 1.0.2
+      on-exit-leak-free:
+        specifier: ^2.1.2
+        version: 2.1.2
       onnxruntime-node:
         specifier: ^1.24.2
         version: 1.24.2
@@ -152,6 +164,9 @@ importers:
       pino:
         specifier: ^9.14.0
         version: 9.14.0
+      pino-abstract-transport:
+        specifier: ^3.0.0
+        version: 3.0.0
       pino-pretty:
         specifier: ^13.0.0
         version: 13.1.3
@@ -161,12 +176,21 @@ importers:
       promisify-child-process:
         specifier: ^5.0.1
         version: 5.0.1
+      pump:
+        specifier: ^3.0.3
+        version: 3.0.3
+      secure-json-parse:
+        specifier: ^4.1.0
+        version: 4.1.0
       sharp:
         specifier: ^0.34.5
         version: 0.34.5
       sharp-bmp:
         specifier: ^0.1.5
         version: 0.1.5
+      sonic-boom:
+        specifier: ^4.2.1
+        version: 4.2.1
       stream-to-async-iterator:
         specifier: ^1.0.0
         version: 1.0.0
@@ -192,6 +216,9 @@ importers:
       '@types/bun':
         specifier: ^1.3.9
         version: 1.3.9
+      '@types/dateformat':
+        specifier: ^5.0.3
+        version: 5.0.3
       '@types/eslint__js':
         specifier: ^9.14.0
         version: 9.14.0(eslint@10.0.1)
@@ -201,6 +228,9 @@ importers:
       '@types/node':
         specifier: ^25.3.0
         version: 25.3.0
+      '@types/pump':
+        specifier: ^1.1.3
+        version: 1.1.3
       '@types/ws':
         specifier: ^8.18.1
         version: 8.18.1
@@ -291,10 +321,10 @@ packages:
   '@atcute/util-text@1.1.1':
     resolution: {integrity: sha512-JH0SxzUQJAmbOBTYyhxQbkkI6M33YpjlVLEcbP5GYt43xgFArzV0FJVmEpvIj0kjsmphHB45b6IitdvxPdec9w==}
 
-  '@atcute/xrpc-server-node@0.1.0':
-    resolution: {integrity: sha512-EfmxT0m9wWNATnZjuT9LEsGZ3jMFULGHMjc0e8xpS52vsTh7rO3TgAz12Pf+Ui9XJRs09UvZGgm9lquprOQQ5g==}
+  '@atcute/xrpc-server-node@0.1.1':
+    resolution: {integrity: sha512-j4nfPXP04AKJKCnSjMAcTxuohmGIas/BR+v//ODIeqcT43UHYHXG+1iru3u79VNeXVe1tEq6AbdST94HBsekGw==}
     peerDependencies:
-      '@atcute/xrpc-server': ^0.1.3
+      '@atcute/xrpc-server': ^0.1.10
 
   '@atcute/xrpc-server@0.1.10':
     resolution: {integrity: sha512-j4I+ajiYn9Oxv8h5jU7Bzv1G9x7GNcsn7xpnFT7gXh4RUq19kyoKnKDToaQ+eHyCUo+lhqJOBDbggCdiC1SuGQ==}
@@ -1284,6 +1314,9 @@ packages:
   '@types/connect@3.4.38':
     resolution: {integrity: sha512-K6uROf1LD88uDQqJCktA4yzL1YYAK6NgfsI0v/mTgyPKWsX1CnJ0XPSDhViejru1GcRkLWb8RlzFYJRqGUbaug==}
 
+  '@types/dateformat@5.0.3':
+    resolution: {integrity: sha512-hvskLa9ObgUwJe0rtfkyBbU+VIK8Ia3BACsxRsp4CPnyPBAOyIHbqImfBGFfaVVxn82wGx5SD8Twll6jMc/BaQ==}
+
   '@types/eslint__js@9.14.0':
     resolution: {integrity: sha512-s0jepCjOJWB/GKcuba4jISaVpBudw3ClXJ3fUK4tugChUMQsp6kSwuA8Dcx6wFd/JsJqcY8n4rEpa5RTHs5ypA==}
     deprecated: This is a stub types definition. @eslint/js provides its own type definitions, so you do not need this installed.
@@ -1335,6 +1368,9 @@ packages:
 
   '@types/pg@8.15.6':
     resolution: {integrity: sha512-NoaMtzhxOrubeL/7UZuNTrejB4MPAJ0RpxZqXQf2qXuVlTPuG6Y8p4u9dKRaue4yjmC7ZhzVO2/Yyyn25znrPQ==}
+
+  '@types/pump@1.1.3':
+    resolution: {integrity: sha512-ZyooTTivmOwPfOwLVaszkF8Zq6mvavgjuHYitZhrIjfQAJDH+kIP3N+MzpG1zDAslsHvVz6Q8ECfivix3qLJaQ==}
 
   '@types/qs@6.9.16':
     resolution: {integrity: sha512-7i+zxXdPD0T4cKDuxCUXJ4wHcsJLwENa6Z3dCu8cfCK743OGy5Nu1RmAGqDPsoTDINVEcdXKRvR/zre+P2Ku1A==}
@@ -1739,6 +1775,10 @@ packages:
 
   dateformat@4.6.3:
     resolution: {integrity: sha512-2P0p0pFGzHS5EMnhdxQi7aJN+iMheud0UhG4dlE1DLAlvL8JHjJJTX/CSm4JXwV0Ka5nGk3zC5mcb5bUQUxxMA==}
+
+  dateformat@5.0.3:
+    resolution: {integrity: sha512-Kvr6HmPXUMerlLcLF+Pwq3K7apHpYmGDVqrxcDasBg86UcKeTSNWbEzU8bwdXnxnR44FtMhJAxI4Bov6Y/KUfA==}
+    engines: {node: '>=12.20'}
 
   debug@4.3.7:
     resolution: {integrity: sha512-Er2nc/H7RrMXZBFCEim6TCmMk02Z8vLC2Rbi1KEBggpo0fS6l0S1nnapwmIi3yW/+GOJap1Krg4w0Hg80oCqgQ==}
@@ -2749,8 +2789,8 @@ packages:
     resolution: {integrity: sha512-llQsMLSUDUPT44jdrU/O37qlnifitDP+ZwrmmZcoSKyLKvtZxpyV0n2/bD/N4tBAAZ/gJEdZU7KMraoK1+XYAg==}
     engines: {node: '>= 0.10'}
 
-  pump@3.0.2:
-    resolution: {integrity: sha512-tUPXtzlGM8FE3P0ZL6DVs/3P58k9nk8/jZeQCurTJylQA8qFYzHFfhBJkuqyE0FifOsQ0uKWekiZ5g8wtr28cw==}
+  pump@3.0.3:
+    resolution: {integrity: sha512-todwxLMY7/heScKmntwQG8CXVkWUOdYxIvY2s0VWAAMh/nd8SoYiRaKjlr7+iCs984f2P8zvrfWcDDYVb73NfA==}
 
   punycode@2.3.1:
     resolution: {integrity: sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==}
@@ -2922,8 +2962,8 @@ packages:
     resolution: {integrity: sha512-bSiSngZ/jWeX93BqeIAbImyTbEihizcwNjFoRUIY/T1wWQsfsm2Vw1agPKylXvQTU7iASGdHhyqRlqQzfz+Htg==}
     engines: {node: '>=18'}
 
-  sonic-boom@4.2.0:
-    resolution: {integrity: sha512-INb7TM37/mAcsGmc9hyyI6+QR3rR1zVRu36B0NeGXKnOOLiZOfER5SA+N7X7k3yUYRzLWafduTDvJAfDswwEww==}
+  sonic-boom@4.2.1:
+    resolution: {integrity: sha512-w6AxtubXa2wTXAUsZMMWERrsIRAdrK0Sc+FUytWvYAhBJLyuI4llrMIC1DtlNSdI99EI86KZum2MMq3EAZlF9Q==}
 
   split2@4.2.0:
     resolution: {integrity: sha512-UcjcJOWknrNkF6PLX83qcHM6KHgVKNkV62Y8a5uYDVv9ydGQVwAHMKqHdJje1VTWpljG0WYpCDhrCdAOYH4TWg==}
@@ -3287,7 +3327,7 @@ snapshots:
     dependencies:
       unicode-segmenter: 0.14.5
 
-  '@atcute/xrpc-server-node@0.1.0(@atcute/xrpc-server@0.1.10)(bufferutil@4.0.8)':
+  '@atcute/xrpc-server-node@0.1.1(@atcute/xrpc-server@0.1.10)(bufferutil@4.0.8)':
     dependencies:
       '@atcute/xrpc-server': 0.1.10
       ws: 8.19.0(bufferutil@4.0.8)
@@ -4204,6 +4244,8 @@ snapshots:
     dependencies:
       '@types/node': 25.3.0
 
+  '@types/dateformat@5.0.3': {}
+
   '@types/eslint__js@9.14.0(eslint@10.0.1)':
     dependencies:
       '@eslint/js': 10.0.1(eslint@10.0.1)
@@ -4265,6 +4307,10 @@ snapshots:
       '@types/node': 25.3.0
       pg-protocol: 1.11.0
       pg-types: 2.2.0
+
+  '@types/pump@1.1.3':
+    dependencies:
+      '@types/node': 25.3.0
 
   '@types/qs@6.9.16': {}
 
@@ -4680,6 +4726,8 @@ snapshots:
   data-uri-to-buffer@4.0.1: {}
 
   dateformat@4.6.3: {}
+
+  dateformat@5.0.3: {}
 
   debug@4.3.7:
     dependencies:
@@ -5128,7 +5176,7 @@ snapshots:
 
   get-stream@5.2.0:
     dependencies:
-      pump: 3.0.2
+      pump: 3.0.3
 
   get-tsconfig@4.8.1:
     dependencies:
@@ -5747,9 +5795,9 @@ snapshots:
       minimist: 1.2.8
       on-exit-leak-free: 2.1.2
       pino-abstract-transport: 3.0.0
-      pump: 3.0.2
+      pump: 3.0.3
       secure-json-parse: 4.1.0
-      sonic-boom: 4.2.0
+      sonic-boom: 4.2.1
       strip-json-comments: 5.0.3
 
   pino-std-serializers@7.0.0: {}
@@ -5765,7 +5813,7 @@ snapshots:
       quick-format-unescaped: 4.0.4
       real-require: 0.2.0
       safe-stable-stringify: 2.5.0
-      sonic-boom: 4.2.0
+      sonic-boom: 4.2.1
       thread-stream: 4.0.0
 
   pino@9.14.0:
@@ -5779,7 +5827,7 @@ snapshots:
       quick-format-unescaped: 4.0.4
       real-require: 0.2.0
       safe-stable-stringify: 2.5.0
-      sonic-boom: 4.2.0
+      sonic-boom: 4.2.1
       thread-stream: 3.1.0
 
   postgres-array@2.0.0: {}
@@ -5814,7 +5862,7 @@ snapshots:
       forwarded: 0.2.0
       ipaddr.js: 1.9.1
 
-  pump@3.0.2:
+  pump@3.0.3:
     dependencies:
       end-of-stream: 1.4.4
       once: 1.4.0
@@ -6051,7 +6099,7 @@ snapshots:
       ansi-styles: 6.2.1
       is-fullwidth-code-point: 5.0.0
 
-  sonic-boom@4.2.0:
+  sonic-boom@4.2.1:
     dependencies:
       atomic-sleep: 1.0.0
 

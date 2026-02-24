@@ -81,7 +81,7 @@ async function modelLoad(modelDir = './models') {
     return await onnx.InferenceSession.create(onnxPath);
 }
 
-const session = await modelLoad(import.meta.dirname);
+const session = await modelLoad('.');
 const inputName = session.inputNames[0];
 
 async function analyze(buffer: ArrayBuffer | Buffer | string) {

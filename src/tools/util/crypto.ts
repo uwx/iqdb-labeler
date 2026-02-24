@@ -46,7 +46,7 @@ export async function verifyJwt(
         resolver: didDocResolver,
     });
 
-    const result = await jwtVerifier.verify(jwtStr, { lxm: lxm as Nsid });\
+    const result = await jwtVerifier.verify(jwtStr, { lxm: lxm as Nsid });
     if (!result.ok) {
         throw new XRPCError({
             status: 401,

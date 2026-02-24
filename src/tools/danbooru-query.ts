@@ -9,8 +9,19 @@ const bigqueryClient = new BigQuery({
     projectId: process.env.GCLOUD_PROJECT_ID
 });
 
+function sql(strings: TemplateStringsArray, ...values: any[]) {
+    let result = '';
+    for (let i = 0; i < strings.length; i++) {
+        result += strings[i];
+        if (i < values.length) {
+            result += values[i];
+        }
+    }
+    return result;
+}
+
 const queries = {
-    tags: `
+    tags: sql`
     SELECT
         category,
         created_at,
@@ -22,7 +33,7 @@ const queries = {
     FROM
         danbooru1.danbooru_public.tags;
     `,
-    wiki_pages: `
+    wiki_pages: sql`
     SELECT
         body,
         created_at,
@@ -35,7 +46,7 @@ const queries = {
     FROM
         danbooru1.danbooru_public.wiki_pages;
     `,
-    tag_implications: `
+    tag_implications: sql`
     SELECT
         forum_post_id,
         approver_id,
@@ -50,7 +61,7 @@ const queries = {
         consequent_name
     FROM danbooru1.danbooru_public.tag_implications;
     `,
-    tag_aliases: `
+    tag_aliases: sql`
     SELECT
         forum_post_id,
         approver_id,

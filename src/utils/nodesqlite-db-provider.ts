@@ -1,7 +1,6 @@
 import { Bytes,Did } from "@atcute/lexicons";
 import type { SavedLabel, SignedLabel, DbProvider as SkywareDbProvider } from "./db-provider.js";
-import { DatabaseSync } from 'node:sqlite';
-import { createDb,Database } from "../backend/kysely/index.js";
+import { createDb, Database } from "../backend/kysely/index.js";
 
 function toArray(buf: Uint8Array | Bytes): Uint8Array {
     if (buf instanceof Uint8Array) return buf;
