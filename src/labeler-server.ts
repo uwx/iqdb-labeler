@@ -4,19 +4,25 @@ import logger from './backend/logger.js';
 import feedGenerator, { useDidWeb } from './services/feed-generator.js';
 import { aesDecrypt } from './backend/crypto.js';
 import { serve } from '@hono/node-server';
-import { XRPCRouter } from '@atcute/xrpc-server';
+import { json,
+XRPCRouter,XRPCSubscriptionError } from '@atcute/xrpc-server';
 import { createNodeWebSocket } from '@atcute/xrpc-server-node';
 import { Hono } from 'hono';
 import { cors } from '@atcute/xrpc-server/middlewares/cors';
-import { ComAtprotoRepoStrongRef } from '@atcute/atproto';
+import { ComAtprotoLabelDefs,
+ComAtprotoLabelQueryLabels,
+ComAtprotoLabelSubscribeLabels,
+ComAtprotoRepoStrongRef } from '@atcute/atproto';
 import { SqliteDbProvider } from './utils/nodesqlite-db-provider.ts';
 import { P256PrivateKey } from '@atcute/crypto';
-import { Labeler } from './labeler/index.ts';
+import { FutureCursorError,
+Labeler } from './labeler/index.ts';
 import { DbLabelStore } from './utils/db-label-store.ts';
 import { fromString as ui8FromString } from "uint8arrays/from-string";
 import { createDb, migrateToLatest } from './backend/kysely/index.ts';
 import { createRequestListener } from '@remix-run/node-fetch-server'
 import * as http from 'node:http';
+import { ResourceUri } from '@atcute/lexicons';
 
 await migrateToLatest(createDb(DB_PATH));
 
@@ -34,14 +40,57 @@ const router = new XRPCRouter({
     middlewares: [cors()],
 });
 
-const labelerServer = new Hono();
+router.addSubscription(ComAtprotoLabelSubscribeLabels, {
+	async *handler({ params, signal }) {
+		try {
+			for await (const label of labeler.subscribeLabels({ cursor: params.cursor, signal })) {
+				yield {
+                    ...label,
+                    $type: 'com.atproto.label.subscribeLabels#labels'
+                };
+			}
+		} catch (err) {
+			if (err instanceof FutureCursorError) {
+				throw new XRPCSubscriptionError({ error: 'FutureCursor' });
+			}
+			throw err;
+		}
+	},
+});
 
-labelerServer.mount('/xrpc/*', router.fetch);
+router.addQuery(ComAtprotoLabelQueryLabels, {
+    async handler({ params: { uriPatterns, cursor, sources, limit } }) {
+        const events = await labelerDb.searchLabels(
+            cursor && !isNaN(Number(cursor)) ? Number(cursor) : undefined,
+            limit ?? 100,
+            uriPatterns,
+            sources
+        );
+        
+        return json({
+            labels: events.map(event => ({
+                src: event.src,
+                uri: event.uri as ResourceUri,
+                cid: event.cid ?? undefined,
+                val: event.val,
+                neg: event.neg,
+                cts: event.cts,
+                exp: event.exp ?? undefined,
+            } satisfies ComAtprotoLabelDefs.Label)),
+            cursor: undefined, // TODO implement cursor-based pagination
+        });
+    }
+})
+
+
+const labelerServer = new Hono();
 
 metricsServer(labelerServer);
 
 feedGenerator(router, labelerDb); // TODO
 useDidWeb(labelerServer);
+
+labelerServer.mount('/xrpc/*', router.fetch);
 
 export interface BotLabelRecordOptions {
 	/**
