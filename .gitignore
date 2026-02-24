@@ -18,3 +18,8 @@ bun.lockb
 /src/puzzle-scraper/edge/backend/PuzzleUser.dll
 /src/puzzle-scraper/edge/backend/PuzzleUser.pdb
 /.chissl-profile.yml
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+/src/taggers/node-wd-vit-v3/model.onnx
