@@ -24,3 +24,4 @@ bun.lockb
 *.db-journal
 /src/taggers/node-wd-vit-v3/model.onnx
 /models/camie-tagger-v2.onnx
+/.stfolder/syncthing-folder-32d106.txt
