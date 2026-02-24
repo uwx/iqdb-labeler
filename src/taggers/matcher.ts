@@ -16,11 +16,11 @@ export interface Match {
     sha256?: string;
     rating?: Rating;
     sourceUrl?: string;
-    pixivId?: number;
-    fileSize?: number;
+    pixivId?: bigint;
+    fileSize?: bigint;
 
     /** Danbooru tag IDs for post */
-    tags: number[];
+    tags: bigint[];
 }
 export interface MatchError {
     error: string | Error;
@@ -29,7 +29,7 @@ export interface MatchError {
 const db = createDb(DB_PATH);
 
 export abstract class Matcher {
-    async getTagIdsByNameOrAlias(names: string[]): Promise<number[]> {
+    async getTagIdsByNameOrAlias(names: string[]): Promise<bigint[]> {
         const results = await db
             .selectFrom('tags')
             .select('id')
@@ -46,7 +46,7 @@ export abstract class Matcher {
         return results.map(r => r.id);
     }
 
-    async getTagIdByNameOrAlias(name: string): Promise<number | undefined> {
+    async getTagIdByNameOrAlias(name: string): Promise<bigint | undefined> {
         const result = await db
             .selectFrom('tags')
             .select('id')

@@ -38,7 +38,7 @@ migrations['001'] = {
             .addColumn('createdAt', 'datetime')
             .addColumn('category', 'integer')
             .addColumn('postCount', 'integer')
-            .addColumn('wikiPageId', 'integer', col => col.references('wiki_pages.id'))
+            .addColumn('wikiPageId', 'integer', col => col.references('wikiPages.id'))
             .execute()
 
         await db.schema
@@ -208,4 +208,202 @@ migrations['001'] = {
 
         await sql`PRAGMA journal_mode = DELETE;`.execute(db);
     },
+}
+
+migrations['002'] = {
+    async up(db: Kysely<unknown>) {
+        await db.schema
+            .dropIndex('labels_cid_idx')
+            .ifExists()
+            .execute()
+            
+        await db.schema
+            .dropIndex('labels_uri_idx')
+            .ifExists()
+            .execute()
+
+        await db.schema
+            .alterTable('labels')
+            .dropColumn('src')
+            .execute()
+            
+        await db.schema
+            .alterTable('labels')
+            .dropColumn('uri')
+            .execute()
+            
+        await db.schema
+            .alterTable('labels')
+            .dropColumn('cid')
+            .execute()
+            
+        await db.schema
+            .alterTable('labels')
+            .dropColumn('val')
+            .execute()
+            
+        await db.schema
+            .alterTable('labels')
+            .dropColumn('neg')
+            .execute()
+            
+        await db.schema
+            .alterTable('labels')
+            .dropColumn('cts')
+            .execute()
+            
+        await db.schema
+            .alterTable('labels')
+            .dropColumn('exp')
+            .execute()
+            
+        await db.schema
+            .alterTable('labels')
+            .dropColumn('sig')
+            .execute()
+            
+        await db.schema
+            .alterTable('labels')
+            .addColumn('src', 'text', col => col.notNull())
+            .execute()
+            
+        await db.schema
+            .alterTable('labels')
+            .addColumn('uri', 'text', col => col.notNull())
+            .execute()
+            
+        await db.schema
+            .alterTable('labels')
+            .addColumn('cid', 'text', col => col.defaultTo('null'))
+            .execute()
+            
+        await db.schema
+            .alterTable('labels')
+            .addColumn('val', 'text', col => col.notNull())
+            .execute()
+            
+        await db.schema
+            .alterTable('labels')
+            .addColumn('neg', 'integer', col => col.defaultTo(0))
+            .execute()
+            
+        await db.schema
+            .alterTable('labels')
+            .addColumn('cts', 'datetime', col => col.notNull())
+            .execute()
+            
+        await db.schema
+            .alterTable('labels')
+            .addColumn('exp', 'datetime', col => col.defaultTo('null'))
+            .execute()
+            
+        await db.schema
+            .alterTable('labels')
+            .addColumn('sig', 'blob', col => col.notNull())
+            .execute()
+    },
+    async down(db: Kysely<unknown>) {
+        await db.schema
+            .dropIndex('labels_cid_idx')
+            .ifExists()
+            .execute()
+            
+        await db.schema
+            .dropIndex('labels_uri_idx')
+            .ifExists()
+            .execute()
+
+        await db.schema
+            .alterTable('labels')
+            .dropColumn('src')
+            .execute()
+            
+        await db.schema
+            .alterTable('labels')
+            .dropColumn('uri')
+            .execute()
+            
+        await db.schema
+            .alterTable('labels')
+            .dropColumn('cid')
+            .execute()
+            
+        await db.schema
+            .alterTable('labels')
+            .dropColumn('val')
+            .execute()
+            
+        await db.schema
+            .alterTable('labels')
+            .dropColumn('neg')
+            .execute()
+            
+        await db.schema
+            .alterTable('labels')
+            .dropColumn('cts')
+            .execute()
+            
+        await db.schema
+            .alterTable('labels')
+            .dropColumn('exp')
+            .execute()
+            
+        await db.schema
+            .alterTable('labels')
+            .dropColumn('sig')
+            .execute()
+            
+        await db.schema
+            .alterTable('labels')
+            .addColumn('src', 'text')
+            .execute()
+            
+        await db.schema
+            .alterTable('labels')
+            .addColumn('uri', 'text')
+            .execute()
+            
+        await db.schema
+            .alterTable('labels')
+            .addColumn('cid', 'text', col => col.notNull().defaultTo('null'))
+            .execute()
+            
+        await db.schema
+            .alterTable('labels')
+            .addColumn('val', 'text')
+            .execute()
+            
+        await db.schema
+            .alterTable('labels')
+            .addColumn('neg', 'integer', col => col.notNull().defaultTo(0))
+            .execute()
+            
+        await db.schema
+            .alterTable('labels')
+            .addColumn('cts', 'datetime')
+            .execute()
+            
+        await db.schema
+            .alterTable('labels')
+            .addColumn('exp', 'datetime', col => col.notNull().defaultTo('null'))
+            .execute()
+            
+        await db.schema
+            .alterTable('labels')
+            .addColumn('sig', 'blob', col => col.notNull().defaultTo('null'))
+            .execute()
+            
+        await db.schema
+            .createIndex('labels_uri_idx')
+            .on('labels')
+            .column('uri')
+            .execute()
+
+        await db.schema
+            .createIndex('labels_cid_idx')
+            .on('labels')
+            .column('cid')
+            .execute()
+
+    }
 }

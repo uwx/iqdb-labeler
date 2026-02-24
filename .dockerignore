@@ -1,0 +1,8 @@
+node_modules
+out
+.git
+.env
+*.md
+*.mp
+cursor.txt
+danbooru-data

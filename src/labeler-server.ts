@@ -14,6 +14,11 @@ import { P256PrivateKey } from '@atcute/crypto';
 import { Labeler } from './labeler/index.ts';
 import { DbLabelStore } from './utils/db-label-store.ts';
 import { fromString as ui8FromString } from "uint8arrays/from-string";
+import { createDb, migrateToLatest } from './backend/kysely/index.ts';
+import { createRequestListener } from '@remix-run/node-fetch-server'
+import * as http from 'node:http';
+
+await migrateToLatest(createDb(DB_PATH));
 
 const labelerDb = new SqliteDbProvider(DB_PATH);
 
@@ -67,6 +72,8 @@ labelerServer.post('/label', async c => {
         return c.text('No URI', 400);
     }
 
+    logger.debug(`Received label request for ${decryptedBody.reference.uri} with labels: ${decryptedBody.labels.join(', ')}`);
+
     const labels = await labeler.applyLabels(
         decryptedBody.labels.map(label => {
             return {
@@ -83,19 +90,15 @@ labelerServer.post('/label', async c => {
 
 labelerServer.get('/robots.txt', c => {
     return c.text('User-agent: *\nDisallow: /', 200);
-})
+});
 
-const server = serve(
-    {
-        fetch: labelerServer.fetch,
-        port: PORT,
-    },
-    (info) => {
-        logger.info(`Labeler server listening on ${server.address()}`);
-    },
-);
+let server = http.createServer(createRequestListener(labelerServer.fetch))
 
 injectWebSocket(server, router);
+
+server.listen(PORT, () => {
+    logger.info(`Labeler server listening on ${server.address()}`);
+});
 
 function shutdown() {
     try {

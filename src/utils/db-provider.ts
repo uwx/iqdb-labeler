@@ -19,19 +19,18 @@ export type UnsignedLabel = {
     /** If true, this is a negation label, overwriting a previous label. */
     neg?: boolean | null;
     /** The AT Protocol version of the label object. */
-    ver?: number | null;
+    ver?: number | bigint | null;
 };
 export type SignedLabel = UnsignedLabel & { sig: Uint8Array | Bytes };
 export type FormattedLabel = UnsignedLabel & { sig?: Bytes };
-export type SavedLabel = SignedLabel & { id: number };
-
+export type SavedLabel = SignedLabel & { id: bigint, ver?: bigint | null };
 export interface DbProvider {
     queryLabels(identifier: string, cursor?: number, limit?: number): Promise<SavedLabel[]> | SavedLabel[];
-    saveLabel(label: SignedLabel): number | Promise<number>;
-    saveLabels(labels: SignedLabel[]): number[] | Promise<number[]>;
+    saveLabel(label: SignedLabel): bigint | Promise<bigint>;
+    saveLabels(labels: SignedLabel[]): bigint[] | Promise<bigint[]>;
     searchLabels(cursor?: number, limit?: number, uriPatterns?: string[], sources?: string[]): Promise<SavedLabel[]> | SavedLabel[];
 
     isCursorInTheFuture(cursor: number): boolean | Promise<boolean>;
-    getLatestCursor(): number | null | Promise<number | null>;
+    getLatestCursor(): bigint | null | Promise<bigint | null>;
     iterateLabels(cursor?: number): Iterable<SavedLabel> | AsyncIterable<SavedLabel>;
 }

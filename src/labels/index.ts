@@ -4,7 +4,7 @@ import { BQTag, BQTagAlias, BQTagImplication, BQWikiPage } from '../tools/danboo
 import logger from '../backend/logger.js';
 import { alphabetToString, alphabetParseInt  } from '../utils/ints.js';
 import { ComAtprotoLabelDefs } from '@atcute/atproto';
-import { createDb } from '../backend/kysely/index.js';
+import { createDb,migrateToLatest } from '../backend/kysely/index.js';
 import { DB_PATH } from '../config.js';
 import { TagCategory,TagsTable } from '../backend/kysely/schema.js';
 import { sql } from 'kysely';
@@ -28,6 +28,8 @@ async function* readJsonLines<T>(path: string) {
 const db = createDb(DB_PATH);
 
 export async function injectDanbooruTags() {
+    await migrateToLatest(db);
+
     logger.info('clearing tags db');
 
     // clear tables
@@ -153,7 +155,7 @@ export async function *getLabelValueDefinitions() {
     const tags = db
         .selectFrom('tags')
         .where('isDeprecated', '=', 0)
-        .where('postCount', '>=', 10000)
+        .where('postCount', '>=', 10000n)
         .where('category', '!=', TagCategory.Meta)
         .where(eb => eb.or([eb('name', 'is', null), eb('name', 'not in', ignoredTags)]))
         .leftJoin('wikiPages', 'tags.name', 'wikiPages.title')
@@ -195,11 +197,11 @@ export async function *getLabelValueDefinitions() {
  *
  * @param tag
  */
-export function getLabelIdForTag(tag: { id: number, name: string }): string;
+export function getLabelIdForTag(tag: { id: number | bigint, name: string }): string;
 export function getLabelIdForTag(tag: number | string): Promise<string | undefined>;
-export function getLabelIdForTag(tag: number | string | { id: number, name: string }): Promise<string | undefined> | string {
-    function getSanitizedTagName(tag: { id: number, name: string }) {
-        const name = `${alphabetToString(tag.id)}-${tag.name?.toLowerCase()?.replace(/[^a-z-]/g, '-').replace(/-{2,}/g, '-') ?? ''}`;
+export function getLabelIdForTag(tag: number | string | { id: number | bigint, name: string }): Promise<string | undefined> | string {
+    function getSanitizedTagName(tag: { id: number | bigint, name: string }) {
+        const name = `${alphabetToString(Number(tag.id))}-${tag.name?.toLowerCase()?.replace(/[^a-z-]/g, '-').replace(/-{2,}/g, '-') ?? ''}`;
 
         if (name.indexOf('-') >= 14) {
             throw new Error('Sanity check failed: tag ID is too big to fit in a feed rkey');
@@ -224,7 +226,7 @@ export function getLabelIdForTag(tag: number | string | { id: number, name: stri
         return (async () => {
             const tag1 = await db
                 .selectFrom('tags')
-                .where('id', '=', tag)
+                .where('id', '=', BigInt(tag))
                 .selectAll()
                 .executeTakeFirst();
 

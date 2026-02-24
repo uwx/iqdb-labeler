@@ -10,3 +10,8 @@ declare module '@atcute/xrpc-server-node' {
     }
     export const createNodeWebSocket: () => NodeWebSocket;
 }
+
+declare module '*.csv?raw' {
+    const content: string;
+    export default content;
+}

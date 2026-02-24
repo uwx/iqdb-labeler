@@ -18,18 +18,18 @@ export class SqliteDbProvider implements SkywareDbProvider {
         const result = await this.db.selectFrom('labels')
             .selectAll()
             .where('val', '=', identifier)
-            .where('id', '>', cursor)
+            .where('id', '>', BigInt(cursor))
             .orderBy('id', 'asc')
             .limit(limit)
             .execute();
 
         return result.map(row => ({
             ...row,
-            neg: row.neg == 1,
+            neg: row.neg == 1n,
         }));
     }
 
-    async saveLabel(label: SignedLabel): Promise<number> {
+    async saveLabel(label: SignedLabel): Promise<bigint> {
         const { src, uri, cid, val, neg, cts, exp, sig } = label;
 
         const result = await this.db.insertInto('labels')
@@ -38,7 +38,7 @@ export class SqliteDbProvider implements SkywareDbProvider {
                 uri: uri,
                 cid: cid ?? null,
                 val: val,
-                neg: neg ? 1 : 0,
+                neg: neg ? 1n : 0n,
                 cts: cts,
                 exp: exp ?? null,
                 sig: toArray(sig),
@@ -46,14 +46,14 @@ export class SqliteDbProvider implements SkywareDbProvider {
             .execute();
         if (!result[0].numInsertedOrUpdatedRows) throw new Error("Failed to insert label");
 
-        return Number(result[0].insertId);
+        return result[0].insertId!;
     }
 
-    async saveLabels(labels: SignedLabel[]): Promise<number[]> {
+    async saveLabels(labels: SignedLabel[]): Promise<bigint[]> {
         const ids = await this.db
             .transaction()
             .execute(async trx => {
-                const ids: number[] = [];
+                const ids: bigint[] = [];
                 for (const label of labels) {
                     const { src, uri, cid, val, neg, cts, exp, sig } = label;
                     const result = await trx.insertInto('labels')
@@ -62,14 +62,14 @@ export class SqliteDbProvider implements SkywareDbProvider {
                             uri: uri,
                             cid: cid ?? null,
                             val: val,
-                            neg: neg ? 1 : 0,
+                            neg: neg ? 1n : 0n,
                             cts: cts,
                             exp: exp ?? null,
                             sig: toArray(sig),
                         })
                         .execute();
 
-                    ids.push(Number(result[0].insertId));
+                    ids.push(result[0].insertId!);
                 }
                 return ids;
             });
@@ -103,14 +103,14 @@ export class SqliteDbProvider implements SkywareDbProvider {
         }
 
         if (cursor) {
-            query = query.where('id', '>', cursor);
+            query = query.where('id', '>', BigInt(cursor));
         }
 
         const result = await query.orderBy('id', 'asc').limit(limit).execute();
 
         return result.map(row => ({
             ...row,
-            neg: row.neg == 1,
+            neg: row.neg == 1n,
         }));
     }
 
@@ -122,7 +122,7 @@ export class SqliteDbProvider implements SkywareDbProvider {
         return cursor > (result?.id ?? 0);
     }
 
-    async getLatestCursor(): Promise<number | null> {
+    async getLatestCursor(): Promise<bigint | null> {
         const result = await this.db.selectFrom('labels')
             .select(eb => eb.fn.max('id').as('id'))
             .executeTakeFirst();
@@ -133,14 +133,14 @@ export class SqliteDbProvider implements SkywareDbProvider {
     async *iterateLabels(cursor = 0): AsyncIterable<SavedLabel> {
         const results = this.db.selectFrom('labels')
             .selectAll()
-            .where('id', '>', cursor)
+            .where('id', '>', BigInt(cursor))
             .orderBy('id', 'asc')
             .stream();
 
         for await (const row of results) {
             yield {
                 ...row,
-                neg: row.neg == 1,
+                neg: row.neg == 1n,
             };
         }
     }

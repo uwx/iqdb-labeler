@@ -1,5 +1,6 @@
 import { Cid, Did } from "@atcute/lexicons";
-import { Generated } from "kysely";
+import { ColumnType,
+Generated } from "kysely";
 import { Rating } from "../../taggers/matcher";
 
 export type DatabaseSchema = {
@@ -24,23 +25,24 @@ export const enum TagCategory {
     Meta = 5,
 }
 
+type integer = ColumnType<bigint, bigint | number, bigint | number>;
 export interface TagsTable {
-    id: number;
+    id: integer;
     name: string;
     words: string;              // JSON: string[]
     isDeprecated: 0 | 1 | null;
     updatedAt: string | null;
     createdAt: string | null;
     category: TagCategory | null;
-    postCount: number | null;
+    postCount: integer | null;
 }
 
 export interface TagAliasesTable {
-    id: number;
+    id: integer;
     forumPostId: string | null;
-    forumTopicId: number | null;
+    forumTopicId: integer | null;
     approverId: string | null;
-    creatorId: number | null;
+    creatorId: integer | null;
     updatedAt: string | null;
     createdAt: string | null;
     status: string | null;
@@ -50,11 +52,11 @@ export interface TagAliasesTable {
 }
 
 export interface TagImplicationsTable {
-    id: number;
-    forumPostId: number | null;
-    forumTopicId: number | null;
-    approverId: number | null;
-    creatorId: number | null;
+    id: integer;
+    forumPostId: integer | null;
+    forumTopicId: integer | null;
+    approverId: integer | null;
+    creatorId: integer | null;
     updatedAt: string | null;
     createdAt: string | null;
     status: string | null;
@@ -64,12 +66,12 @@ export interface TagImplicationsTable {
 }
 
 export interface WikiPagesTable {
-    id: number;
+    id: integer;
     title: string | null;
     body: string | null;
     otherNames: string;         // JSON: string[]
-    isDeleted: 0 | 1 | null;
-    isLocked: 0 | 1 | null;
+    isDeleted: bigint | null;
+    isLocked: bigint | null;
     updatedAt: string | null;
     createdAt: string | null;
 }
@@ -78,12 +80,12 @@ export interface WikiPagesTable {
 
 //#region labels
 export interface LabelsTable {
-    id: Generated<number>;
+    id: Generated<bigint>;
     src: Did;
     uri: string;
     cid: Cid | null;
     val: string;
-    neg: 0 | 1 | null;
+    neg: bigint | null;
     cts: string;
     exp: string | null;
     sig: Uint8Array;
@@ -95,7 +97,7 @@ export interface KeyValueStoreTable {
     superkey: Uint8Array;
     key: Uint8Array;
     value: Uint8Array;
-    version: number;
+    version: integer;
 }
 //#endregion
 
@@ -120,8 +122,8 @@ export interface MatchesTable {
     sha256?: string;
     rating?: Rating;
     sourceUrl?: string;
-    pixivId?: number;
-    fileSize?: number;
+    pixivId?: integer;
+    fileSize?: integer;
 
     /** Danbooru tag IDs for post */
     tags: string; // JSON: number[]

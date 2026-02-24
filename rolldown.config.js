@@ -1,4 +1,17 @@
 import { defineConfig } from 'rolldown';
+import { readFileSync } from 'fs';
+
+const raw = () => {
+    return {
+        name: 'raw',
+        load(id) {
+            if (id.endsWith('?raw')) {
+                const content = readFileSync(id.replace('?raw', '')).toString('utf-8');
+                return `export default ${JSON.stringify(content)};`;
+            }
+        }
+    };
+};
 
 export default defineConfig({
     input: {
@@ -12,7 +25,7 @@ export default defineConfig({
     treeshake: true,
     platform: 'node',
     external: [
-        'node:*', 'sharp', 'kysely', 'onnxruntime-node', 'ws', 'ngrok', 'cloudflared'
+        'node:*', 'sharp', 'kysely', 'onnxruntime-node', 'ws', 'ngrok', 'cloudflared', 'msgpackr-extract'
     ],
     output: {
         dir: 'out',
@@ -21,4 +34,5 @@ export default defineConfig({
         preserveModules: true,
         preserveModulesRoot: '.',
     },
+    plugins: [raw()],
 });

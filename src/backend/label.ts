@@ -80,7 +80,7 @@ export async function labelPost(post: (AppBskyFeedPost.Main & { uri: string, cid
         return;
     }
 
-    const labels = new Set<number>();
+    const labels = new Set<bigint>();
 
     let authorDid: Did;
     {
@@ -106,12 +106,13 @@ export async function labelPost(post: (AppBskyFeedPost.Main & { uri: string, cid
         let match: Match | undefined = queryResult
             ? {
                 ...queryResult,
-                tags: JSON.parse(queryResult.tags) as number[]
+                tags: (JSON.parse(queryResult.tags) as number[]).map(id => BigInt(id))
             }
             : undefined;
 
         if (!match) {
-            const imageUrl = `https://cdn.bsky.app/img/feed_thumbnail/plain/${authorDid}/${imageCid}@webp`
+            const imageUrl = `https://cdn.bsky.app/img/feed_thumbnail/plain/${authorDid}/${imageCid}@jpeg`
+            logger.debug(imageUrl);
 
             for (const [matcher, matchCandidate] of await Promise.all(
                 matchers.map(async matcher => [
@@ -129,7 +130,7 @@ export async function labelPost(post: (AppBskyFeedPost.Main & { uri: string, cid
                             .values({
                                 imageUrl: imageCid,
                                 ...matchCandidate,
-                                tags: JSON.stringify(matchCandidate.tags)
+                                tags: JSON.stringify(matchCandidate.tags, (_, value) => typeof value === 'bigint' ? Number(value) : value)
                             })
                             .execute();
                         match = matchCandidate;

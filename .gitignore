@@ -26,3 +26,4 @@ bun.lockb
 /models/camie-tagger-v2.onnx
 /.stfolder
 /out
+/models/model.onnx
