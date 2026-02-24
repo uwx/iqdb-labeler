@@ -9,10 +9,7 @@ XRPCRouter,XRPCSubscriptionError } from '@atcute/xrpc-server';
 import { createNodeWebSocket } from '@atcute/xrpc-server-node';
 import { Hono } from 'hono';
 import { cors } from '@atcute/xrpc-server/middlewares/cors';
-import { ComAtprotoLabelDefs,
-ComAtprotoLabelQueryLabels,
-ComAtprotoLabelSubscribeLabels,
-ComAtprotoRepoStrongRef } from '@atcute/atproto';
+import { ComAtprotoLabelDefs, ComAtprotoLabelQueryLabels, ComAtprotoLabelSubscribeLabels, ComAtprotoRepoStrongRef } from '@atcute/atproto';
 import { SqliteDbProvider } from './utils/nodesqlite-db-provider.ts';
 import { P256PrivateKey } from '@atcute/crypto';
 import { FutureCursorError,
@@ -90,7 +87,9 @@ metricsServer(labelerServer);
 feedGenerator(router, labelerDb); // TODO
 useDidWeb(labelerServer);
 
-labelerServer.mount('/xrpc/*', router.fetch);
+labelerServer.mount('/xrpc', router.fetch, {
+    replaceRequest: (req) => req,
+});
 
 export interface BotLabelRecordOptions {
 	/**
