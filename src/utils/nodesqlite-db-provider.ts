@@ -1,4 +1,4 @@
-import { Bytes } from "@atcute/lexicons";
+import { Bytes,Did } from "@atcute/lexicons";
 import type { SavedLabel, SignedLabel, DbProvider as SkywareDbProvider } from "./db-provider.js";
 import { DatabaseSync } from 'node:sqlite';
 import { createDb,Database } from "../backend/kysely/index.js";
@@ -91,56 +91,58 @@ export class SqliteDbProvider implements SkywareDbProvider {
             return pattern.slice(0, -1) + "%";
         });
 
+        let query = this.db.selectFrom('labels').selectAll();
+
+        if (patterns.length) {
+            query = query.where((eb) =>
+                eb.or(patterns.map((pattern) => eb('uri', 'like', pattern)))
+            );
+        }
+
+        if (sources.length) {
+            query = query.where('src', 'in', sources as Did[]);
+        }
+
+        if (cursor) {
+            query = query.where('id', '>', cursor);
+        }
+
+        const result = await query.orderBy('id', 'asc').limit(limit).execute();
+
+        return result.map(row => ({
+            ...row,
+            neg: row.neg == 1,
+        }));
+    }
+
+    async isCursorInTheFuture(cursor: number) {
         const result = await this.db.selectFrom('labels')
+            .select(eb => eb.fn.max('id').as('id'))
+            .executeTakeFirst();
+
+        return cursor > (result?.id ?? 0);
+    }
+
+    async getLatestCursor(): Promise<number | null> {
+        const result = await this.db.selectFrom('labels')
+            .select(eb => eb.fn.max('id').as('id'))
+            .executeTakeFirst();
+
+        return result?.id ?? null;
+    }
+
+    async *iterateLabels(cursor = 0): AsyncIterable<SavedLabel> {
+        const results = this.db.selectFrom('labels')
             .selectAll()
-            .where(patterns.length ? "uri", "like", patterns.map(() => "?").join(" OR "))
-            .where(sources.length ? `src`, `in`, sources.map(() => "?"))
-            .where(cursor ? "id", ">", cursor)
+            .where('id', '>', cursor)
             .orderBy('id', 'asc')
-            .limit(limit)
+            .stream();
 
-        const stmt = this.db.prepare(`
-            SELECT * FROM labels
-            WHERE 1 = 1
-            ${patterns.length ? "AND " + patterns.map(() => "uri LIKE ?").join(" OR ") : ""}
-            ${sources.length ? `AND src IN (${sources.map(() => "?").join(", ")})` : ""}
-            ${cursor ? "AND id > ?" : ""}
-            ORDER BY id ASC
-            LIMIT ?
-        `);
-
-        const params = [];
-        if (patterns.length) params.push(...patterns);
-        if (sources.length) params.push(...sources);
-        if (cursor) params.push(cursor);
-        params.push(limit);
-
-        return stmt.all(...params) as unknown as Array<SavedLabel>;
-    }
-
-    isCursorInTheFuture(cursor: number) {
-        const latest = this.db.prepare(`
-            SELECT MAX(id) AS id FROM labels
-        `).get() as { id: number };
-
-        return cursor > latest.id;
-    }
-
-    getLatestCursor(): number | null {
-        const latest = this.db.prepare(`
-            SELECT MAX(id) AS id FROM labels
-        `).get() as { id: number };
-
-        return latest.id ?? null;
-    }
-
-    iterateLabels(cursor = 0) {
-        const stmt = this.db.prepare(`
-            SELECT * FROM labels
-            WHERE id > ?
-            ORDER BY id ASC
-        `);
-
-        return stmt.iterate(cursor) as Iterable<SavedLabel>;
+        for await (const row of results) {
+            yield {
+                ...row,
+                neg: row.neg == 1,
+            };
+        }
     }
 }
