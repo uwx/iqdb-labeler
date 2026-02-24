@@ -1,3 +1,4 @@
-import { LmdbWrapper } from '../utils/lmdb-wrapper.js';
+import { DB_PATH } from '../config.js';
+import { SqliteWrapper } from '../utils/nodesqlite-wrapper.js';
 
-export const db = new LmdbWrapper('database');
+export const db = new SqliteWrapper(DB_PATH);

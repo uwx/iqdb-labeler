@@ -1,6 +1,7 @@
 import { Bytes } from "@atcute/lexicons";
 import type { SavedLabel, SignedLabel, DbProvider as SkywareDbProvider } from "./db-provider.js";
 import { DatabaseSync } from 'node:sqlite';
+import { createDb,Database } from "../backend/kysely/index.js";
 
 function toArray(buf: Uint8Array | Bytes): Uint8Array {
     if (buf instanceof Uint8Array) return buf;
@@ -8,71 +9,76 @@ function toArray(buf: Uint8Array | Bytes): Uint8Array {
 }
 
 export class SqliteDbProvider implements SkywareDbProvider {
-    private db: DatabaseSync;
+    private db: Database;
 
     constructor(dbPath?: string) {
-        this.db = new DatabaseSync(dbPath ?? "labels.db");
-        this.db.exec("pragma journal_mode = WAL;");
-        this.db.exec(`
-            CREATE TABLE IF NOT EXISTS labels (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                src TEXT NOT NULL,
-                uri TEXT NOT NULL,
-                cid TEXT,
-                val TEXT NOT NULL,
-                neg BOOLEAN DEFAULT FALSE,
-                cts DATETIME NOT NULL,
-                exp DATETIME,
-                sig BLOB
-            );
-        `);
+        this.db = createDb(dbPath ?? "labels.db");
     }
 
-    queryLabels(identifier: string, cursor = 0, limit = 1): SavedLabel[] {
-        const stmt = this.db.prepare(`
-            SELECT id, src, uri, cid, val, neg, cts, exp, sig
-                FROM labels
-                WHERE val = ? AND id > ?
-                ORDER BY id ASC
-                LIMIT ?
-        `);
+    async queryLabels(identifier: string, cursor = 0, limit = 1): Promise<SavedLabel[]> {
+        const result = await this.db.selectFrom('labels')
+            .selectAll()
+            .where('val', '=', identifier)
+            .where('id', '>', cursor)
+            .orderBy('id', 'asc')
+            .limit(limit)
+            .execute();
 
-        const result = stmt.all(identifier, cursor, limit);
-        return result as unknown as SavedLabel[];
+        return result.map(row => ({
+            ...row,
+            neg: row.neg == 1,
+        }));
     }
 
-    saveLabel(label: SignedLabel): number {
-        const stmt = this.db.prepare(`
-            INSERT INTO labels (src, uri, cid, val, neg, cts, exp, sig)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `);
-
+    async saveLabel(label: SignedLabel): Promise<number> {
         const { src, uri, cid, val, neg, cts, exp, sig } = label;
-        const result = stmt.run(src, uri, cid ?? null, val, neg ? 1 : 0, cts, exp ?? null, toArray(sig));
-        if (!result.changes) throw new Error("Failed to insert label");
 
-        return Number(result.lastInsertRowid);
+        const result = await this.db.insertInto('labels')
+            .values({
+                src: src,
+                uri: uri,
+                cid: cid ?? null,
+                val: val,
+                neg: neg ? 1 : 0,
+                cts: cts,
+                exp: exp ?? null,
+                sig: toArray(sig),
+            })
+            .execute();
+        if (!result[0].numInsertedOrUpdatedRows) throw new Error("Failed to insert label");
+
+        return Number(result[0].insertId);
     }
 
-    saveLabels(labels: SignedLabel[]): number[] {
-        this.db.exec('BEGIN TRANSACTION');
+    async saveLabels(labels: SignedLabel[]): Promise<number[]> {
+        const ids = await this.db
+            .transaction()
+            .execute(async trx => {
+                const ids: number[] = [];
+                for (const label of labels) {
+                    const { src, uri, cid, val, neg, cts, exp, sig } = label;
+                    const result = await trx.insertInto('labels')
+                        .values({
+                            src: src,
+                            uri: uri,
+                            cid: cid ?? null,
+                            val: val,
+                            neg: neg ? 1 : 0,
+                            cts: cts,
+                            exp: exp ?? null,
+                            sig: toArray(sig),
+                        })
+                        .execute();
 
-        const stmt = this.db.prepare(`
-            INSERT INTO labels (src, uri, cid, val, neg, cts, exp, sig)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `);
+                    ids.push(Number(result[0].insertId));
+                }
+                return ids;
+            });
 
-        for (const label of labels) {
-            const { src, uri, cid, val, neg, cts, exp, sig } = label;
-            stmt.run(src, uri, cid ?? null, val, neg ? 1 : 0, cts, exp ?? null, toArray(sig));
-        }
-
-        this.db.exec('COMMIT');
-
-        return labels.map((label, idx) => Number(idx + 1));
+        return ids;
     }
 
-    searchLabels(cursor?: number, limit = 50, uriPatterns: string[] = [], sources: string[] = []) {
+    async searchLabels(cursor?: number, limit = 50, uriPatterns: string[] = [], sources: string[] = []) {
         const patterns = uriPatterns.includes("*") ? [] : uriPatterns.map((pattern) => {
             pattern = pattern.replaceAll(/%/g, "").replaceAll(/_/g, "\\_");
 
@@ -84,6 +90,14 @@ export class SqliteDbProvider implements SkywareDbProvider {
             }
             return pattern.slice(0, -1) + "%";
         });
+
+        const result = await this.db.selectFrom('labels')
+            .selectAll()
+            .where(patterns.length ? "uri", "like", patterns.map(() => "?").join(" OR "))
+            .where(sources.length ? `src`, `in`, sources.map(() => "?"))
+            .where(cursor ? "id", ">", cursor)
+            .orderBy('id', 'asc')
+            .limit(limit)
 
         const stmt = this.db.prepare(`
             SELECT * FROM labels

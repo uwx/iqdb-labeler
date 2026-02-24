@@ -1,24 +1,40 @@
 // import { DELETE, LABELS, LABEL_LIMIT } from './constants.js';
 import logger from './logger.js';
-import { bot } from './bot.js';
-import { Post } from '#skyware/bot';
-import { AppBskyFeedPost } from '@atcute/client/lexicons';
 import { matchers } from '../taggers/index.js';
-import { db } from './lmdb.js';
 import { Match } from '../taggers/matcher.js';
-import { getLabelIdForTag, tags } from '../labels/index.js';
+import { getLabelIdForTag } from '../labels/index.js';
 import { labelDefinitions } from '../utils/label-definitions.js';
 import { inspect } from 'node:util';
-import { BACKEND_DOMAIN } from '../config.js';
+import { BACKEND_DOMAIN, DB_PATH } from '../config.js';
 import { aesEncrypt } from './crypto.js';
+import { AppBskyFeedPost } from '@atcute/bluesky';
+import { KittyAgent } from 'kitty-agent';
+import { Blob, Did, Handle, LegacyBlob, parseResourceUri } from '@atcute/lexicons';
+import { createDb } from './kysely/index.js';
+import { CompositeDidDocumentResolver, CompositeHandleResolver, DohJsonHandleResolver, WellKnownHandleResolver } from '@atcute/identity-resolver';
 
 //labelerServer.app.addHook('onRequest', request => {
 //    console.log(`onRequest`, request);
 //})
 
-const matchesByUrl = db.table<string, Match>('matches', 'ordered-binary');
+const db = createDb(DB_PATH);
 
-export async function labelPost(post: Post | (AppBskyFeedPost.Record & { uri: string, cid: string }) | string) {
+const agent = KittyAgent.createAppview();
+
+function getBlobCid(blob: Blob | LegacyBlob) {
+    if ('cid' in blob) return blob.cid;
+    if ('ref' in blob) return blob.ref.$link;
+    throw new Error('No CID found');
+}
+
+const handleResolver = new CompositeHandleResolver({
+    methods: {
+        dns: new DohJsonHandleResolver({ dohUrl: 'https://mozilla.cloudflare-dns.com/dns-query' }),
+        http: new WellKnownHandleResolver(),
+    },
+});
+
+export async function labelPost(post: (AppBskyFeedPost.Main & { uri: string, cid: string }) | string) {
     const uri = typeof post === 'string' ? post : post.uri;
     logger.info(`Trying to label ${uri}`);
 
@@ -28,43 +44,94 @@ export async function labelPost(post: Post | (AppBskyFeedPost.Record & { uri: st
     }
 
     if (typeof post === 'string') {
-        post = await bot.getPost(post);
+        const result = parseResourceUri(post);
+        if (!result.ok) {
+            logger.error(`Failed to parse URI ${post}: ${result.error}`);
+            return;
+        }
+        if (!result.value.rkey) {
+            logger.error(`Failed to parse URI ${post}: no rkey`);
+            return;
+        }
+        const gotRecord = await agent.getRecord({
+            collection: 'app.bsky.feed.post',
+            rkey: result.value.rkey,
+            repo: result.value.repo
+        });
+        post = {
+            ...gotRecord.value,
+            uri: gotRecord.uri.toString(),
+            cid: gotRecord.cid!
+        };
     }
 
     const images: string[] = [];
 
     if (post.embed) {
-        if ('isImages' in post.embed) {
-            if (post.embed.isImages()) {
-                for (const image of post.embed.images) {
-                    if (image.url) images.push(image.url);
-                }
-            }
-        } else if ('images' in post.embed) {
+        if ('images' in post.embed) {
             for (const image of post.embed.images) {
-                images.push(image.image.ref.$link);
+                images.push(getBlobCid(image.image));
             }
         }
     }
 
     if (images.length == 0) {
-        logger.debug('No images');
+        logger.debug(`No images in ${post.uri}`);
         return;
     }
 
     const labels = new Set<number>();
 
-    for (const imageUrl of images) {
-        let match = matchesByUrl.get(imageUrl);
+    let authorDid: Did;
+    {
+        const postUri = parseResourceUri(post.uri);
+        if (!postUri.ok) {
+            logger.error(`Failed to parse post URI ${post.uri}: ${postUri.error}`);
+            return;
+        }
+        const repo = postUri.value.repo;
+        if (!repo.startsWith('did:')) {
+            authorDid = await handleResolver.resolve(repo as Handle);
+        } else {
+            authorDid = repo as Did;
+        }
+    }
+
+    for (const imageCid of images) {
+        const queryResult = await db
+            .selectFrom('matches')
+            .selectAll()
+            .where('imageUrl', '=', imageCid)
+            .executeTakeFirst();
+        let match: Match | undefined = queryResult
+            ? {
+                ...queryResult,
+                tags: JSON.parse(queryResult.tags) as number[]
+            }
+            : undefined;
 
         if (!match) {
-            for (const [matcher, matchCandidate] of await Promise.all(matchers.map(async matcher => [matcher, await matcher.getMatch(imageUrl)] as const))) {
+            const imageUrl = `https://cdn.bsky.app/img/feed_thumbnail/plain/${authorDid}/${imageCid}@webp`
+
+            for (const [matcher, matchCandidate] of await Promise.all(
+                matchers.map(async matcher => [
+                    matcher,
+                    await matcher.getMatch(imageUrl)
+                ] as const)
+            )) {
                 if (matchCandidate) {
                     if ('error' in matchCandidate) {
                         console.error(matchCandidate['error']);
-                        logger.error({error: inspect(matchCandidate['error'])}, `During ${imageUrl} matching for ${matcher.constructor.name}`)
+                        logger.error({ error: inspect(matchCandidate['error']) }, `During ${imageCid} matching for ${matcher.constructor.name}`)
                     } else {
-                        matchesByUrl.put(imageUrl, matchCandidate);
+                        await db
+                            .insertInto('matches')
+                            .values({
+                                imageUrl: imageCid,
+                                ...matchCandidate,
+                                tags: JSON.stringify(matchCandidate.tags)
+                            })
+                            .execute();
                         match = matchCandidate;
                         break;
                     }
@@ -87,12 +154,18 @@ export async function labelPost(post: Post | (AppBskyFeedPost.Record & { uri: st
     //});
 
     if (labels.size > 0) {
-        await addLabels(post.uri, [...labels]
-            .map(id => tags.get(id))
-            .filter(tag => tag !== undefined)
-            .sort((a, b) => a.name?.localeCompare(b.name ?? '') ?? -1)
-            .map(tag => getLabelIdForTag(tag))
-            .filter(labelId => labelId in labelDefinitions), post.cid);
+        const labelIdsToAdd = await db
+            .selectFrom('tags')
+            .select(['id', 'name'])
+            .where('id', 'in', [...labels])
+            .execute()
+            .then(result => result
+                .sort((a, b) => a.name?.localeCompare(b.name ?? '') ?? -1)
+                .map(tag => getLabelIdForTag(tag))
+                .filter(labelId => labelId in labelDefinitions)
+            );
+
+        await addLabels(post.uri, labelIdsToAdd, post.cid);
     } else {
         logger.info('No matches');
     }
@@ -171,6 +244,6 @@ async function addLabels(uri: string, identifiers: string[], cid: string) {
 
         logger.info(`Successfully labeled ${uri} with ${identifiers.map(e => labelDefinitions[e].locales[0].name).join(', ')}`);
     } catch (error) {
-        logger.error(inspect(error), `Error adding new label: ${error}`);
+        logger.error(error, `Error adding new label: ${error}`);
     }
 }

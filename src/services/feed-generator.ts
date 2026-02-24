@@ -100,7 +100,11 @@ export default function(router: XRPCRouter, labelerDb: DbProvider) {
             return json({
                 feed: queryResult.map(e => ({ post: e.uri as ResourceUri } satisfies AppBskyFeedDefs.SkeletonFeedPost)),
 
-                ...(queryResult.length > 0 ? { cursor: String(Math.max(...queryResult.map(e => e.id))) } : {}),
+                ...(
+                    queryResult.length > 0
+                        ? { cursor: String(Math.max(...queryResult.map(e => e.id))) }
+                        : {}
+                ),
             });
         },
     });

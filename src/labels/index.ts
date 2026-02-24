@@ -1,94 +1,13 @@
 import { createReadStream } from 'node:fs';
 import readline from 'node:readline/promises';
-import { BQTag, BQTagAlias, BQTagImplication, BQWikiPage } from './danbooru-query.js';
-import { db } from '../backend/lmdb.js';
+import { BQTag, BQTagAlias, BQTagImplication, BQWikiPage } from '../tools/danbooru-query.js';
 import logger from '../backend/logger.js';
 import { alphabetToString, alphabetParseInt  } from '../utils/ints.js';
 import { ComAtprotoLabelDefs } from '@atcute/atproto';
-
-export const enum TagCategory {
-    General = 0,
-    Artist = 1,
-    Copyright = 3,
-    Character = 4,
-    Meta = 5,
-}
-
-export interface Tag {
-    id: number;
-    name?: string;
-    words: string[];
-    isDeprecated?: boolean;
-    updatedAt?: Date;
-    createdAt?: Date;
-    category?: TagCategory;
-    postCount?: number;
-    aliases: {
-        id: number;
-        antecedentName: string;
-    }[];
-    impliedBy: {
-        id: number;
-        antecedentName: string;
-    }[];
-    implies: {
-        id: number;
-        consequentName: string;
-    }[];
-
-    wikiPageId?: number;
-}
-
-export interface WikiPage {
-    id: number;
-
-    title?: string;
-    body?: string;
-
-    otherNames: string[];
-
-    isDeleted?: boolean;
-    isLocked?: boolean;
-
-    updatedAt?: Date;
-    createdAt?: Date;
-}
-
-export interface TagImplication {
-    id: number;
-
-    forumPostId?: number;
-    forumTopicId?: number;
-    approverId?: number;
-    creatorId?: number;
-
-    updatedAt?: Date;
-    createdAt?: Date;
-
-    status?: string;
-    reason?: string;
-
-    antecedentName?: string;
-    consequentName?: string;
-}
-
-export interface TagAlias {
-    id: number;
-
-    forumPostId?: string;
-    forumTopicId?: number;
-    approverId?: string;
-    creatorId?: number;
-
-    updatedAt?: Date;
-    createdAt?: Date;
-
-    status?: string;
-    reason?: string;
-
-    antecedentName?: string;
-    consequentName?: string;
-}
+import { createDb } from '../backend/kysely/index.js';
+import { DB_PATH } from '../config.js';
+import { TagCategory,TagsTable } from '../backend/kysely/schema.js';
+import { sql } from 'kysely';
 
 async function* readJsonLines<T>(path: string) {
     const fileStream = createReadStream(path);
@@ -106,169 +25,115 @@ async function* readJsonLines<T>(path: string) {
     fileStream.close();
 }
 
-export const tags = db.table<number, Tag>('tags', 'uint32');
-export const tagsByName = db.table<string, number>('tag-by-name');
-export const tagsByNameOrAlias = db.table<string, number>('tag-by-alias');
-
-export const tagAliases = db.table<number, TagAlias>('aliases', 'uint32');
-
-export const wikiPages = db.table<number, WikiPage>('wiki-pages', 'uint32');
-export const wikiPagesByTitle = db.table<string, number>('wiki-page-by-name');
+const db = createDb(DB_PATH);
 
 export async function injectDanbooruTags() {
     logger.info('clearing tags db');
-    await tags.clearAsync();
-    await tagsByName.clearAsync();
-    await tagsByNameOrAlias.clearAsync();
-    await tagAliases.clearAsync();
-    await wikiPages.clearAsync();
-    await wikiPagesByTitle.clearAsync();
 
+    // clear tables
+    await db.transaction().execute(async trx => {
+        await trx.deleteFrom('tags').execute();
+        await trx.deleteFrom('tagAliases').execute();
+        await trx.deleteFrom('wikiPages').execute();
+        await trx.deleteFrom('tagImplications').execute();
+    });
+    
     logger.info('injecting tags');
-    await db.transaction(async () => {
+    await db.transaction().execute(async trx => {
         for await (const tag of readJsonLines<BQTag>('./danbooru-data/tags.jsonl')) {
-            // console.log('tag', tag.id);
-            tags.put(tag.id, {
-                id: tag.id,
-
-                name: tag.name,
-                words: tag.words,
-
-                isDeprecated: tag.is_deprecated,
-
-                updatedAt: tag.updated_at?.value ? new Date(tag.updated_at?.value) : undefined,
-                createdAt: tag.created_at?.value ? new Date(tag.created_at?.value) : undefined,
-
-                category: tag.category,
-                postCount: tag.post_count,
-
-                aliases: [],
-                impliedBy: [],
-                implies: [],
-            });
-
-            if (tag.name && tag.name.length < 500) {
-                try {
-                    tagsByName.put(tag.name, tag.id);
-                    tagsByNameOrAlias.put(tag.name, tag.id);
-                } catch (err) {
-                    logger.error(`errored: ${JSON.stringify(tag)}`);
-                    throw err;
-                }
-            }
+            await trx
+                .insertInto('tags')
+                .values({
+                    id: tag.id,
+                    name: tag.name!,
+                    words: JSON.stringify(tag.words),
+                    isDeprecated: tag.is_deprecated ? 1 : 0,
+                    updatedAt: tag.updated_at?.value ? new Date(tag.updated_at.value).toISOString() : undefined,
+                    createdAt: tag.created_at?.value ? new Date(tag.created_at.value).toISOString() : undefined,
+                    category: tag.category,
+                    postCount: tag.post_count,
+                })
+                .onConflict((oc) => oc.doNothing())
+                .execute();
         }
     });
 
     logger.info('injecting tag_aliases');
-    await db.transaction(async () => {
+    await db.transaction().execute(async trx => {
         for await (const tagAlias of readJsonLines<BQTagAlias>('./danbooru-data/tag_aliases.jsonl')) {
             // console.log('tagAlias', tagAlias.id);
-            tagAliases.put(tagAlias.id, {
-                id: tagAlias.id,
 
-                forumPostId: tagAlias.forum_post_id,
-                forumTopicId: tagAlias.forum_topic_id,
-                approverId: tagAlias.approver_id,
-                creatorId: tagAlias.creator_id,
-
-                updatedAt: tagAlias.updated_at?.value ? new Date(tagAlias.updated_at?.value) : undefined,
-                createdAt: tagAlias.created_at?.value ? new Date(tagAlias.created_at?.value) : undefined,
-
-                status: tagAlias.status,
-                reason: tagAlias.reason,
-
-                antecedentName: tagAlias.antecedent_name,
-                consequentName: tagAlias.consequent_name,
-            });
-
-            if (tagAlias.consequent_name && tagAlias.antecedent_name && tagAlias.status == 'active') {
-                const tag = tags.get(tagsByName.get(tagAlias.consequent_name)!);
-
-                if (tag) {
-                    if (!tag.aliases.some(e => e.id == tagAlias.id)) {
-                        tag.aliases.push({
-                            id: tagAlias.id,
-                            antecedentName: tagAlias.antecedent_name,
-                        })
-                        tags.put(tag.id, tag);
-                    }
-
-                    tagsByNameOrAlias.put(tagAlias.antecedent_name, tag.id);
-                }
-            }
+            await trx
+                .insertInto('tagAliases')
+                .values({
+                    id: tagAlias.id,
+                    forumPostId: tagAlias.forum_post_id,
+                    forumTopicId: tagAlias.forum_topic_id,
+                    approverId: tagAlias.approver_id,
+                    creatorId: tagAlias.creator_id,
+                    updatedAt: tagAlias.updated_at?.value ? new Date(tagAlias.updated_at.value).toISOString() : undefined,
+                    createdAt: tagAlias.created_at?.value ? new Date(tagAlias.created_at.value).toISOString() : undefined,
+                    status: tagAlias.status,
+                    reason: tagAlias.reason,
+                    antecedentName: tagAlias.antecedent_name,
+                    consequentName: tagAlias.consequent_name,
+                })
+                .onConflict((oc) => oc.doNothing())
+                .execute();
         }
     });
 
     logger.info('injecting tag_implications');
-    await db.transaction(async () => {
+    await db.transaction().execute(async trx => {
         for await (const tagImplication of readJsonLines<BQTagImplication>('./danbooru-data/tag_implications.jsonl')) {
             // console.log('tagImplication', tagImplication.id);
-            if (tagImplication.status == 'active') {
-                if (tagImplication.antecedent_name && tagImplication.consequent_name) {
-                    const antecedent = tags.get(tagsByName.get(tagImplication.antecedent_name)!)!;
-                    const consequent = tags.get(tagsByName.get(tagImplication.consequent_name)!)!;
 
-                    if (!antecedent.implies.some(e => e.id == antecedent.id)) {
-                        antecedent.implies.push({
-                            consequentName: consequent.name!,
-                            id: consequent.id,
-                        });
-
-                        tags.put(antecedent.id, antecedent);
-                    }
-
-                    if (!consequent.impliedBy.some(e => e.id == consequent.id)) {
-                        consequent.impliedBy.push({
-                            antecedentName: antecedent.name!,
-                            id: antecedent.id,
-                        });
-
-                        tags.put(consequent.id, consequent);
-                    }
-                }
-            }
+            await trx
+                .insertInto('tagImplications')
+                .values({
+                    id: tagImplication.id,
+                    forumPostId: tagImplication.forum_post_id,
+                    forumTopicId: tagImplication.forum_topic_id,
+                    approverId: tagImplication.approver_id,
+                    creatorId: tagImplication.creator_id,
+                    updatedAt: tagImplication.updated_at?.value ? new Date(tagImplication.updated_at.value).toISOString() : undefined,
+                    createdAt: tagImplication.created_at?.value ? new Date(tagImplication.created_at.value).toISOString() : undefined,
+                    status: tagImplication.status,
+                    reason: tagImplication.reason,
+                    antecedentName: tagImplication.antecedent_name,
+                    consequentName: tagImplication.consequent_name,
+                })
+                .onConflict((oc) => oc.doNothing())
+                .execute();
         }
     });
 
     logger.info('injecting wiki_pages');
-    await db.transaction(async () => {
+    await db.transaction().execute(async trx => {
         for await (const wikiPage of readJsonLines<BQWikiPage>('./danbooru-data/wiki_pages.jsonl')) {
             // console.log('wikiPage', wikiPage.id);
-            await wikiPages.put(wikiPage.id, {
-                id: wikiPage.id,
 
-                title: wikiPage.title,
-                body: wikiPage.body,
-
-                otherNames: wikiPage.other_names ?? [],
-
-                isDeleted: wikiPage.is_deleted,
-                isLocked: wikiPage.is_locked,
-
-                updatedAt: wikiPage.updated_at?.value ? new Date(wikiPage.updated_at?.value) : undefined,
-                createdAt: wikiPage.created_at?.value ? new Date(wikiPage.created_at?.value) : undefined,
-            });
-
-            if (wikiPage.title) {
-                await wikiPagesByTitle.put(wikiPage.title, wikiPage.id);
-
-                if (!wikiPage.is_deleted) {
-                    const tagId = tagsByName.get(wikiPage.title)!;
-
-                    if (tagId) {
-                        const tag = tags.get(tagId)!;
-                        tag.wikiPageId = wikiPage.id;
-                        await tags.put(tag.id, tag);
-                    }
-                }
-            }
+            await trx
+                .insertInto('wikiPages')
+                .values({
+                    id: wikiPage.id,
+                    title: wikiPage.title,
+                    body: wikiPage.body,
+                    otherNames: JSON.stringify(wikiPage.other_names ?? []),
+                    isDeleted: wikiPage.is_deleted ? 1 : 0,
+                    isLocked: wikiPage.is_locked ? 1 : 0,
+                    updatedAt: wikiPage.updated_at?.value ? new Date(wikiPage.updated_at.value).toISOString() : undefined,
+                    createdAt: wikiPage.created_at?.value ? new Date(wikiPage.created_at.value).toISOString() : undefined,
+                })
+                .onConflict((oc) => oc.doNothing())
+                .execute();
         }
     });
 
     // logger.info('compacting db');
-    // console.time('compact db');
-    // await db.compactDb();
-    // console.timeEnd('compact db');
+    console.time('compact db');
+    await sql`VACUUM`.execute(db);
+    console.timeEnd('compact db');
 }
 
 export async function *getLabelValueDefinitions() {
@@ -280,20 +145,24 @@ export async function *getLabelValueDefinitions() {
         [TagCategory.Meta]: 'meta',
     };
 
-    const ignoredTags = new Set<string>(['banned_artist']);
+    const ignoredTags = ['banned_artist'];
     let i = 0;
 
-    const identifiers = new Map<string, Tag>();
+    const identifiers = new Map<string, TagsTable>();
 
-    for (const tag of await tags.getRange()
-        .map(e => e.value)
-        .filter(tag => !tag.isDeprecated && tag.postCount && tag.postCount >= 10000 && tag.category !== TagCategory.Meta && (!tag.name || !ignoredTags.has(tag.name)))
-        .asArray
-        .then(e => e.sort((a, b) => (b.postCount ?? 0) - (a.postCount ?? 0)))
-    ) {
+    const tags = db
+        .selectFrom('tags')
+        .where('isDeprecated', '=', 0)
+        .where('postCount', '>=', 10000)
+        .where('category', '!=', TagCategory.Meta)
+        .where(eb => eb.or([eb('name', 'is', null), eb('name', 'not in', ignoredTags)]))
+        .leftJoin('wikiPages', 'tags.name', 'wikiPages.title')
+        .orderBy('postCount', 'desc')
+        .select(['tags.id', 'tags.name', 'tags.category', 'wikiPages.title', 'wikiPages.body'])
+        .stream();
+
+    for await (const tag of tags) {
         logger.debug(`${i++}: ${tag.name ?? tag.id}`);
-
-        const wikiPage = tag.wikiPageId ? wikiPages.get(tag.wikiPageId) : undefined;
 
         const identifier = assertLabelIdValid(getLabelIdForTag(tag)!);
 
@@ -310,9 +179,9 @@ export async function *getLabelValueDefinitions() {
             locales: [
                 {
                     lang: 'en',
-                    name: (tag.category !== undefined && tag.category !== TagCategory.General ? `${tagCategoryNames[tag.category]}: ` : '') +
-                        `${tag.name?.replace(/_/g, ' ') ?? wikiPage?.title?.replace(/_/g, ' ') ?? String(tag.id)}`,
-                    description: cleanup(wikiPage?.body ?? `Images with the ${tag.name ?? wikiPage?.title ?? tag.id} tag on Danbooru.`)
+                    name: (tag.category != null && tag.category !== TagCategory.General ? `${tagCategoryNames[tag.category]}: ` : '') +
+                        `${tag.name?.replace(/_/g, ' ') ?? tag?.title?.replace(/_/g, ' ') ?? String(tag.id)}`,
+                    description: cleanup(tag?.body ?? `Images with the ${tag.name ?? tag?.title ?? tag.id} tag on Danbooru.`)
                         // + (wikiPage?.otherNames?.length ? `\n\nOther names: ${wikiPage.otherNames.join(', ')}` : '')
                 },
             ]
@@ -326,10 +195,10 @@ export async function *getLabelValueDefinitions() {
  *
  * @param tag
  */
-export function getLabelIdForTag(tag: Tag): string;
-export function getLabelIdForTag(tag: number | string): string | undefined;
-export function getLabelIdForTag(tag: number | string | Tag): string | undefined {
-    function getSanitizedTagName(tag: Tag) {
+export function getLabelIdForTag(tag: { id: number, name: string }): string;
+export function getLabelIdForTag(tag: number | string): Promise<string | undefined>;
+export function getLabelIdForTag(tag: number | string | { id: number, name: string }): Promise<string | undefined> | string {
+    function getSanitizedTagName(tag: { id: number, name: string }) {
         const name = `${alphabetToString(tag.id)}-${tag.name?.toLowerCase()?.replace(/[^a-z-]/g, '-').replace(/-{2,}/g, '-') ?? ''}`;
 
         if (name.indexOf('-') >= 14) {
@@ -340,18 +209,29 @@ export function getLabelIdForTag(tag: number | string | Tag): string | undefined
     }
 
     if (typeof tag === 'string') {
-        const tagId = tagsByName.get(tag);
-        if (tagId) {
-            const tag1 = tags.get(tagId);
+        return (async () => {
+            const tag1 = await db
+                .selectFrom('tags')
+                .where('name', '=', tag)
+                .selectAll()
+                .executeTakeFirst();
             if (tag1) {
                 return getSanitizedTagName(tag1);
             }
-        }
+            return undefined;
+        })();
     } else if (typeof tag === 'number') {
-        const tag1 = tags.get(tag);
-        if (tag1) {
-            return getSanitizedTagName(tag1);
-        }
+        return (async () => {
+            const tag1 = await db
+                .selectFrom('tags')
+                .where('id', '=', tag)
+                .selectAll()
+                .executeTakeFirst();
+
+            if (tag1) {
+                return getSanitizedTagName(tag1);
+            }
+        })();
     } else {
         return getSanitizedTagName(tag);
     }
