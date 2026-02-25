@@ -41,6 +41,8 @@ router.addSubscription(ComAtprotoLabelSubscribeLabels, {
 	async *handler({ params, signal }) {
 		try {
 			for await (const label of labeler.subscribeLabels({ cursor: params.cursor, signal })) {
+                logger.debug(label, 'Emitting label event');
+
 				yield {
                     ...label,
                     $type: 'com.atproto.label.subscribeLabels#labels'
@@ -63,6 +65,8 @@ router.addQuery(ComAtprotoLabelQueryLabels, {
             uriPatterns,
             sources
         );
+
+        logger.debug(events, `Queried labels with patterns ${uriPatterns?.join(', ')}, sources ${sources?.join(', ')}, cursor ${cursor}, limit ${limit}. Found ${events.length} events.`);
         
         return json({
             labels: events.map(event => ({

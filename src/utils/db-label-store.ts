@@ -3,7 +3,7 @@ import { LabelEvent, LabelStore, SignedLabel } from "../labeler/index.ts";
 import { DbProvider } from "./db-provider.ts";
 
 export class DbLabelStore implements LabelStore {
-    startingCursor = 100000000;
+    startingCursor = 100_000_000;
 
     constructor(private readonly db: DbProvider) {}
 
@@ -24,7 +24,9 @@ export class DbLabelStore implements LabelStore {
         return labels.map(label => ({
             seq: Number(label.id),
             labels: [{
-                ...label,
+                cts: label.cts,
+                src: label.src,
+                val: label.val,
                 uri: label.uri as ResourceUri,
                 cid: label.cid ?? undefined,
                 exp: label.exp ?? undefined,
