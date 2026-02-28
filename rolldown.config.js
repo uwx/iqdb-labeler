@@ -20,7 +20,8 @@ export default defineConfig({
         'publish-feeds': 'src/tools/publish-feeds.ts',
         'set-labels': 'src/tools/set-labels.ts',
         'danbooru-query': 'src/tools/danbooru-query.ts',
-        'any-tunnel': 'src/tools/any-tunnel.ts'
+        'any-tunnel': 'src/tools/any-tunnel.ts',
+        'declare-labeler': 'src/tools/declare-labeler.ts',
     },
     treeshake: true,
     platform: 'node',
