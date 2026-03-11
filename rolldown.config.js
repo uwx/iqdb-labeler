@@ -1,5 +1,5 @@
 import { defineConfig } from 'rolldown';
-import { readFileSync } from 'fs';
+import { readFileSync } from 'node:fs';
 
 const raw = () => {
     return {
