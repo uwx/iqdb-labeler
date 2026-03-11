@@ -9,10 +9,10 @@ import { createNodeWebSocket } from '@atcute/xrpc-server-node';
 import { Hono } from 'hono';
 import { cors } from '@atcute/xrpc-server/middlewares/cors';
 import {
-    ComAtprotoLabelDefs,
+    type ComAtprotoLabelDefs,
     ComAtprotoLabelQueryLabels,
     ComAtprotoLabelSubscribeLabels,
-    ComAtprotoRepoStrongRef,
+    type ComAtprotoRepoStrongRef,
 } from '@atcute/atproto';
 import { SqliteDbProvider } from './utils/nodesqlite-db-provider.ts';
 import { P256PrivateKey } from '@atcute/crypto';
