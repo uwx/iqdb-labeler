@@ -35,6 +35,9 @@ importers:
       '@atcute/jetstream':
         specifier: ^1.1.2
         version: 1.1.2
+      '@atcute/labeler':
+        specifier: ^0.1.0
+        version: 0.1.0
       '@atcute/lexicons':
         specifier: ^1.2.9
         version: 1.2.9
@@ -308,6 +311,9 @@ packages:
 
   '@atcute/jetstream@1.1.2':
     resolution: {integrity: sha512-u6p/h2xppp7LE6W/9xErAJ6frfN60s8adZuCKtfAaaBBiiYbb1CfpzN8Uc+2qtJZNorqGvuuDb5572Jmh7yHBQ==}
+
+  '@atcute/labeler@0.1.0':
+    resolution: {integrity: sha512-MmeWiMPDIIHTsK1ea8zY/riiNW7WgcOb3QgWJCUWlE7FcZf6RIhyX7g3bjokwUQZwxAAYLtzYcCd/gFkWdtQHg==}
 
   '@atcute/lex-cli@2.5.3':
     resolution: {integrity: sha512-829rvezMOfRkJQRKvupNT8TWT/YYffJ2QsB80D9aPjkXSogrETZA7xZcPaMZBXg+mJaVbLO9S4ThPQmlF0L4UQ==}
@@ -3352,6 +3358,14 @@ snapshots:
       yocto-queue: 1.2.2
     transitivePeerDependencies:
       - react
+
+  '@atcute/labeler@0.1.0':
+    dependencies:
+      '@atcute/atproto': 3.1.10
+      '@atcute/cbor': 2.3.2
+      '@atcute/crypto': 2.3.0
+      '@atcute/lexicons': 1.2.9
+      '@mary-ext/simple-event-emitter': 1.0.1
 
   '@atcute/lex-cli@2.5.3':
     dependencies:

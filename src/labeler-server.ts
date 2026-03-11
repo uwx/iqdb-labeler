@@ -4,16 +4,20 @@ import logger from './backend/logger.js';
 import feedGenerator, { useDidWeb } from './services/feed-generator.js';
 import { aesDecrypt } from './backend/crypto.js';
 import { serve } from '@hono/node-server';
-import { json,
-XRPCRouter,XRPCSubscriptionError } from '@atcute/xrpc-server';
+import {
+    json,
+    XRPCRouter, XRPCSubscriptionError
+} from '@atcute/xrpc-server';
 import { createNodeWebSocket } from '@atcute/xrpc-server-node';
 import { Hono } from 'hono';
 import { cors } from '@atcute/xrpc-server/middlewares/cors';
 import { ComAtprotoLabelDefs, ComAtprotoLabelQueryLabels, ComAtprotoLabelSubscribeLabels, ComAtprotoRepoStrongRef } from '@atcute/atproto';
 import { SqliteDbProvider } from './utils/nodesqlite-db-provider.ts';
 import { P256PrivateKey } from '@atcute/crypto';
-import { FutureCursorError,
-Labeler } from './labeler/index.ts';
+import {
+    FutureCursorError,
+    Labeler
+} from '@atcute/labeler';
 import { DbLabelStore } from './utils/db-label-store.ts';
 import { fromString as ui8FromString } from "uint8arrays/from-string";
 import { createDb, migrateToLatest } from './backend/kysely/index.ts';
@@ -26,9 +30,9 @@ await migrateToLatest(createDb(DB_PATH));
 const labelerDb = new SqliteDbProvider(DB_PATH);
 
 const labeler = new Labeler({
-	serviceDid: DID,
-	signingKey: await P256PrivateKey.importRaw(ui8FromString(SIGNING_KEY, 'hex')),
-	store: new DbLabelStore(labelerDb),
+    serviceDid: DID,
+    signingKey: await P256PrivateKey.importRaw(ui8FromString(SIGNING_KEY, 'hex')),
+    store: new DbLabelStore(labelerDb),
 });
 
 const { adapter, injectWebSocket } = createNodeWebSocket();
@@ -38,23 +42,23 @@ const router = new XRPCRouter({
 });
 
 router.addSubscription(ComAtprotoLabelSubscribeLabels, {
-	async *handler({ params, signal }) {
-		try {
-			for await (const label of labeler.subscribeLabels({ cursor: params.cursor, signal })) {
+    async *handler({ params, signal }) {
+        try {
+            for await (const label of labeler.subscribeLabels({ cursor: params.cursor, signal })) {
                 logger.debug(label, 'Emitting label event');
 
-				yield {
+                yield {
                     ...label,
                     $type: 'com.atproto.label.subscribeLabels#labels'
                 };
-			}
-		} catch (err) {
-			if (err instanceof FutureCursorError) {
-				throw new XRPCSubscriptionError({ error: 'FutureCursor' });
-			}
-			throw err;
-		}
-	},
+            }
+        } catch (err) {
+            if (err instanceof FutureCursorError) {
+                throw new XRPCSubscriptionError({ error: 'FutureCursor' });
+            }
+            throw err;
+        }
+    },
 });
 
 router.addQuery(ComAtprotoLabelQueryLabels, {
@@ -67,7 +71,7 @@ router.addQuery(ComAtprotoLabelQueryLabels, {
         );
 
         logger.debug(events, `Queried labels with patterns ${uriPatterns?.join(', ')}, sources ${sources?.join(', ')}, cursor ${cursor}, limit ${limit}. Found ${events.length} events.`);
-        
+
         return json({
             labels: events.map(event => ({
                 src: event.src,
@@ -96,25 +100,25 @@ labelerServer.mount('/xrpc', router.fetch, {
 });
 
 export interface BotLabelRecordOptions {
-	/**
-	 * A reference to the record to label.
-	 */
-	reference: ComAtprotoRepoStrongRef.Main;
+    /**
+     * A reference to the record to label.
+     */
+    reference: ComAtprotoRepoStrongRef.Main;
 
-	/**
-	 * The labels to apply.
-	 */
-	labels: Array<string>;
+    /**
+     * The labels to apply.
+     */
+    labels: Array<string>;
 
-	/**
-	 * The CIDs of specific blobs within the record that the labels apply to, if any.
-	 */
-	blobCids?: Array<string> | undefined;
+    /**
+     * The CIDs of specific blobs within the record that the labels apply to, if any.
+     */
+    blobCids?: Array<string> | undefined;
 
-	/**
-	 * An optional comment.
-	 */
-	comment?: string | undefined;
+    /**
+     * An optional comment.
+     */
+    comment?: string | undefined;
 }
 
 labelerServer.post('/label', async c => {

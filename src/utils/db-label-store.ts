@@ -1,5 +1,5 @@
 import { Bytes, ResourceUri } from "@atcute/lexicons";
-import { LabelEvent, LabelStore, SignedLabel } from "../labeler/index.ts";
+import { LabelEvent, LabelStore, SignedLabel } from '@atcute/labeler';
 import { DbProvider } from "./db-provider.ts";
 
 export class DbLabelStore implements LabelStore {

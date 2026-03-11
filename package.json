@@ -52,6 +52,7 @@
         "@atcute/identity": "^1.1.3",
         "@atcute/identity-resolver": "^1.2.2",
         "@atcute/jetstream": "^1.1.2",
+        "@atcute/labeler": "^0.1.0",
         "@atcute/lexicons": "^1.2.9",
         "@atcute/xrpc-server": "^0.1.10",
         "@atcute/xrpc-server-node": "^0.1.1",
