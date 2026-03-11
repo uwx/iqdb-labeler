@@ -1,7 +1,6 @@
-import { Cid, Did } from "@atcute/lexicons";
-import { ColumnType,
-Generated } from "kysely";
-import { Rating } from "../../taggers/matcher";
+import { Cid, Did } from '@atcute/lexicons';
+import { ColumnType, Generated } from 'kysely';
+import { Rating } from '../../taggers/matcher';
 
 export type DatabaseSchema = {
     tags: TagsTable;
@@ -14,7 +13,7 @@ export type DatabaseSchema = {
     likers: LikersTable;
     config: ConfigTable;
     matches: MatchesTable;
-}
+};
 
 //#region tag definitions
 export const enum TagCategory {
@@ -29,7 +28,7 @@ type integer = ColumnType<bigint, bigint | number, bigint | number>;
 export interface TagsTable {
     id: integer;
     name: string;
-    words: string;              // JSON: string[]
+    words: string; // JSON: string[]
     isDeprecated: 0 | 1 | null;
     updatedAt: string | null;
     createdAt: string | null;
@@ -69,7 +68,7 @@ export interface WikiPagesTable {
     id: integer;
     title: string | null;
     body: string | null;
-    otherNames: string;         // JSON: string[]
+    otherNames: string; // JSON: string[]
     isDeleted: bigint | null;
     isLocked: bigint | null;
     updatedAt: string | null;

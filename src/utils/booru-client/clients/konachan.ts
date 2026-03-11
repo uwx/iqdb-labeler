@@ -1,4 +1,4 @@
-import Moebooru from "./moebooru.js";
+import Moebooru from './moebooru.js';
 
 export default class Konachan extends Moebooru {
     constructor() {

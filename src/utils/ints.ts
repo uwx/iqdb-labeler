@@ -27,7 +27,7 @@ export function alphabetToString(value: number, alphabet: string = ALPHABET) {
     // Calculate len = Math.max(1, 1 + Math.floor(baseLog(radix, value)))
     while (temp >= radix) {
         len++;
-        temp = (temp - temp % radix) / radix;
+        temp = (temp - (temp % radix)) / radix;
     }
     // In another language you would allocate the memory here:
     const result = new Array(len);
@@ -39,7 +39,7 @@ export function alphabetToString(value: number, alphabet: string = ALPHABET) {
         value = (value - digit) / radix;
     } while (len);
 
-    return result.join(""); // Convert char-array to string
+    return result.join(''); // Convert char-array to string
 }
 
 // console.log(toString(115, 'abcdefghijklmnopqrstuvwxyz-'));
@@ -47,7 +47,7 @@ export function alphabetToString(value: number, alphabet: string = ALPHABET) {
 
 // https://stackoverflow.com/a/55646905
 export function parseBigInt(value: string, radix: number) {
-    if (radix < 1 || radix > 36) throw new Error('Radix must be >= 1 <= 36')
+    if (radix < 1 || radix > 36) throw new Error('Radix must be >= 1 <= 36');
 
     const size = 10; // Number.MAX_SAFE_INTEGER is of length 11, so 10 is the most possible
     const factor = BigInt(radix ** size);
@@ -60,7 +60,7 @@ export function parseBigInt(value: string, radix: number) {
     }
 
     for (let i = value.length % size || size; i < value.length; i += size) {
-        const v = value.slice(i, i += size);
+        const v = value.slice(i, (i += size));
 
         r = r * factor + BigInt(parseInt(v, radix));
     }

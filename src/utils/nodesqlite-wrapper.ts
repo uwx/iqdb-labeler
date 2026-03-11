@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { rename } from 'fs/promises';
 import logger from '../backend/logger.js';
-import { DatabaseSync,SQLInputValue,SQLOutputValue,StatementResultingChanges,StatementSync } from 'node:sqlite';
+import { DatabaseSync, SQLInputValue, SQLOutputValue, StatementResultingChanges, StatementSync } from 'node:sqlite';
 import { toBufferKey, fromBufferKey } from 'ordered-binary';
-import { pack,unpack } from 'msgpackr';
+import { pack, unpack } from 'msgpackr';
 
 const sharedStructuresKey = Symbol.for('structures');
 
@@ -27,10 +27,7 @@ type StatementSync<
      * the row.
      */
     all(...anonymousParameters: A): R;
-    all(
-        namedParameters: B,
-        ...anonymousParameters: A
-    ): R[];
+    all(namedParameters: B, ...anonymousParameters: A): R[];
 
     /**
      * This method executes a prepared statement and returns the first result as an
@@ -44,10 +41,7 @@ type StatementSync<
      * rows were returned from the database then this method returns `undefined`.
      */
     get(...anonymousParameters: A): R | undefined;
-    get(
-        namedParameters: B,
-        ...anonymousParameters: A
-    ): R | undefined;
+    get(namedParameters: B, ...anonymousParameters: A): R | undefined;
     /**
      * This method executes a prepared statement and returns an iterator of
      * objects. If the prepared statement does not return any results, this method
@@ -62,10 +56,7 @@ type StatementSync<
      * object correspond to the column names and values of the row.
      */
     iterate(...anonymousParameters: A): NodeJS.Iterator<R>;
-    iterate(
-        namedParameters: B,
-        ...anonymousParameters: A
-    ): NodeJS.Iterator<R>;
+    iterate(namedParameters: B, ...anonymousParameters: A): NodeJS.Iterator<R>;
     /**
      * This method executes a prepared statement and returns an object summarizing the
      * resulting changes. The prepared statement [parameters are bound](https://www.sqlite.org/c3ref/bind_blob.html) using the
@@ -75,17 +66,20 @@ type StatementSync<
      * @param anonymousParameters Zero or more values to bind to anonymous parameters.
      */
     run(...anonymousParameters: A): StatementResultingChanges;
-    run(
-        namedParameters: B,
-        ...anonymousParameters: A
-    ): StatementResultingChanges;
-}
+    run(namedParameters: B, ...anonymousParameters: A): StatementResultingChanges;
+};
 
 export class SqliteWrapper {
     private db_: DatabaseSync;
     private _set: StatementSync<[superkey: Uint8Array, key: Uint8Array, value: Uint8Array, version: number]>;
-    private _setIfVersion: StatementSync<[superkey: Uint8Array, key: Uint8Array, value: Uint8Array, version: number, ifVersion: number]>;
-    private _get: StatementSync<[superkey: Uint8Array, key: Uint8Array], None, {value: Uint8Array<ArrayBuffer>, version: number}>;
+    private _setIfVersion: StatementSync<
+        [superkey: Uint8Array, key: Uint8Array, value: Uint8Array, version: number, ifVersion: number]
+    >;
+    private _get: StatementSync<
+        [superkey: Uint8Array, key: Uint8Array],
+        None,
+        { value: Uint8Array<ArrayBuffer>; version: number }
+    >;
     private _delete: StatementSync<[superkey: Uint8Array, key: Uint8Array]>;
     private _deleteWithValue: StatementSync<[superkey: Uint8Array, key: Uint8Array, value: Uint8Array]>;
     private _deleteIfVersion: StatementSync<[superkey: Uint8Array, key: Uint8Array, ifVersion: number]>;
@@ -96,25 +90,25 @@ export class SqliteWrapper {
         this._set = this.db_.prepare(`--sql
             INSERT INTO genericdb (superkey, key, value, version) VALUES (?, ?, ?, ?)
             ON CONFLICT(key) DO UPDATE SET value=excluded.value, version=excluded.version
-        `) as any
+        `) as any;
         this._setIfVersion = this.db_.prepare(`--sql
             INSERT INTO genericdb (superkey, key, value, version) VALUES (?, ?, ?, ?)
             WHERE version = ?
             ON CONFLICT(key) DO UPDATE SET value=excluded.value, version=excluded.version
             WHERE version = ?
-        `) as any
+        `) as any;
         this._get = this.db_.prepare(`--sql
             SELECT value, version FROM genericdb WHERE key = ? AND superkey = ?
-        `) as any
+        `) as any;
         this._delete = this.db_.prepare(`--sql
             DELETE FROM genericdb WHERE key = ? AND superkey = ?
-        `) as any
+        `) as any;
         this._deleteWithValue = this.db_.prepare(`--sql
             DELETE FROM genericdb WHERE key = ? AND superkey = ? AND value = ?
-        `) as any
+        `) as any;
         this._deleteIfVersion = this.db_.prepare(`--sql
             DELETE FROM genericdb WHERE key = ? AND version = ? AND superkey = ?
-        `) as any
+        `) as any;
         logger.debug(`Opened DB ${name}`);
 
         const self = this;
@@ -128,11 +122,13 @@ export class SqliteWrapper {
         process.on('beforeExit', beforeExit);
     }
 
-    get db() { return this.db_; };
+    get db() {
+        return this.db_;
+    }
 
     openDb(): DatabaseSync {
-        const db = new DatabaseSync(this.name ?? "labels.db");
-        db.exec("pragma journal_mode = WAL;");
+        const db = new DatabaseSync(this.name ?? 'labels.db');
+        db.exec('pragma journal_mode = WAL;');
         db.exec(`--sql
             CREATE TABLE IF NOT EXISTS genericdb (
                 superkey BLOB,
@@ -172,16 +168,8 @@ export class SqliteWrapper {
     }
 
     // string values
-    table(
-        name: string,
-        keyEncoding: 'uint32',
-        encoding: 'string',
-    ): Database<string, number>;
-    table(
-        name: string,
-        keyEncoding: 'binary',
-        encoding: 'string',
-    ): Database<string, Uint8Array>;
+    table(name: string, keyEncoding: 'uint32', encoding: 'string'): Database<string, number>;
+    table(name: string, keyEncoding: 'binary', encoding: 'string'): Database<string, Uint8Array>;
 
     // uint32 keys. 4_294_967_295 is reserved for shared structures
     table<V>(
@@ -216,26 +204,37 @@ export class SqliteWrapper {
         keyEncoding: 'uint32' | 'binary' | 'ordered-binary' = 'ordered-binary',
         encoding: 'msgpack' | 'json' | 'string' | 'binary' | 'ordered-binary' = 'msgpack',
     ): Database<V, K> {
-        return new Database<V, K>(this.db_, this._set, this._setIfVersion, this._get, this._delete, this._deleteWithValue, this._deleteIfVersion, name, keyEncoding, encoding);
+        return new Database<V, K>(
+            this.db_,
+            this._set,
+            this._setIfVersion,
+            this._get,
+            this._delete,
+            this._deleteWithValue,
+            this._deleteIfVersion,
+            name,
+            keyEncoding,
+            encoding,
+        );
     }
 
-    set(
-        name: string,
-        keyEncoding: 'uint32',
-    ): DatabaseSet<number>;
-    set(
-        name: string,
-        keyEncoding: 'binary',
-    ): DatabaseSet<Uint8Array>;
-    set<S extends Key>(
-        name: string,
-        keyEncoding?: 'uint32' | 'binary' | 'ordered-binary',
-    ): DatabaseSet<S>;
+    set(name: string, keyEncoding: 'uint32'): DatabaseSet<number>;
+    set(name: string, keyEncoding: 'binary'): DatabaseSet<Uint8Array>;
+    set<S extends Key>(name: string, keyEncoding?: 'uint32' | 'binary' | 'ordered-binary'): DatabaseSet<S>;
     set<S extends Key>(
         name: string,
         keyEncoding: 'uint32' | 'binary' | 'ordered-binary' = 'ordered-binary',
     ): DatabaseSet<S> {
-        return new DatabaseSet<S>(this.db_, this._set, this._setIfVersion, this._get, this._delete, this._deleteIfVersion, name, keyEncoding);
+        return new DatabaseSet<S>(
+            this.db_,
+            this._set,
+            this._setIfVersion,
+            this._get,
+            this._delete,
+            this._deleteIfVersion,
+            name,
+            keyEncoding,
+        );
     }
 }
 
@@ -247,9 +246,17 @@ export class Database<V = any, K extends Key = Key> {
 
     constructor(
         private readonly db_: DatabaseSync,
-        private readonly set: StatementSync<[superkey: Uint8Array, key: Uint8Array, value: Uint8Array, version: number]>,
-        private readonly setIfVersion: StatementSync<[superkey: Uint8Array, key: Uint8Array, value: Uint8Array, version: number, ifVersion: number]>,
-        private readonly getStmt: StatementSync<[superkey: Uint8Array, key: Uint8Array], None, {value: Uint8Array<ArrayBuffer>, version: number}>,
+        private readonly set: StatementSync<
+            [superkey: Uint8Array, key: Uint8Array, value: Uint8Array, version: number]
+        >,
+        private readonly setIfVersion: StatementSync<
+            [superkey: Uint8Array, key: Uint8Array, value: Uint8Array, version: number, ifVersion: number]
+        >,
+        private readonly getStmt: StatementSync<
+            [superkey: Uint8Array, key: Uint8Array],
+            None,
+            { value: Uint8Array<ArrayBuffer>; version: number }
+        >,
         private readonly deleteStmt: StatementSync<[superkey: Uint8Array, key: Uint8Array]>,
         private readonly deleteWithValue: StatementSync<[superkey: Uint8Array, key: Uint8Array, value: Uint8Array]>,
         private readonly deleteIfVersion: StatementSync<[superkey: Uint8Array, key: Uint8Array, ifVersion: number]>,
@@ -262,7 +269,7 @@ export class Database<V = any, K extends Key = Key> {
                 const buffer = new ArrayBuffer(4);
                 new DataView(buffer).setUint32(0, key as unknown as number);
                 return new Uint8Array(buffer);
-            }
+            };
         } else if (keyEncoding == 'binary') {
             this.encodeKey = (key: K) => key as unknown as Uint8Array;
         } else if (keyEncoding == 'ordered-binary') {
@@ -315,7 +322,13 @@ export class Database<V = any, K extends Key = Key> {
     put(id: K, value: V, version?: number, ifVersion?: number): Promise<boolean> {
         const encodedValue = this.encodeValue(value);
         if (ifVersion !== undefined) {
-            const changes = this.setIfVersion.run(this.nameKey, this.encodeKey(id), encodedValue, version ?? 0, ifVersion);
+            const changes = this.setIfVersion.run(
+                this.nameKey,
+                this.encodeKey(id),
+                encodedValue,
+                version ?? 0,
+                ifVersion,
+            );
             return Promise.resolve(changes.changes > 0);
         } else {
             const changes = this.set.run(this.nameKey, this.encodeKey(id), encodedValue, version ?? 0);
@@ -403,9 +416,17 @@ export class DatabaseSet<K extends Key = Key> {
 
     constructor(
         private readonly database: DatabaseSync,
-        private readonly set: StatementSync<[superkey: Uint8Array, key: Uint8Array, value: Uint8Array, version: number]>,
-        private readonly setIfVersion: StatementSync<[superkey: Uint8Array, key: Uint8Array, value: Uint8Array, version: number, ifVersion: number]>,
-        private readonly get: StatementSync<[superkey: Uint8Array, key: Uint8Array], None, {value: Uint8Array<ArrayBuffer>, version: number}>,
+        private readonly set: StatementSync<
+            [superkey: Uint8Array, key: Uint8Array, value: Uint8Array, version: number]
+        >,
+        private readonly setIfVersion: StatementSync<
+            [superkey: Uint8Array, key: Uint8Array, value: Uint8Array, version: number, ifVersion: number]
+        >,
+        private readonly get: StatementSync<
+            [superkey: Uint8Array, key: Uint8Array],
+            None,
+            { value: Uint8Array<ArrayBuffer>; version: number }
+        >,
         private readonly deleteStmt: StatementSync<[superkey: Uint8Array, key: Uint8Array]>,
         private readonly deleteIfVersion: StatementSync<[superkey: Uint8Array, key: Uint8Array, ifVersion: number]>,
         private readonly name: string,
@@ -416,7 +437,7 @@ export class DatabaseSet<K extends Key = Key> {
                 const buffer = new ArrayBuffer(4);
                 new DataView(buffer).setUint32(0, key as unknown as number);
                 return new Uint8Array(buffer);
-            }
+            };
         } else if (keyEncoding == 'binary') {
             this.encodeKey = (key: K) => key as unknown as Uint8Array;
         } else if (keyEncoding == 'ordered-binary') {
@@ -455,7 +476,13 @@ export class DatabaseSet<K extends Key = Key> {
 
     add(id: K, version?: number, ifVersion?: number): Promise<boolean> {
         if (ifVersion !== undefined) {
-            const changes = this.setIfVersion.run(this.nameKey, this.encodeKey(id), DatabaseSet.setValue, version ?? 0, ifVersion);
+            const changes = this.setIfVersion.run(
+                this.nameKey,
+                this.encodeKey(id),
+                DatabaseSet.setValue,
+                version ?? 0,
+                ifVersion,
+            );
             return Promise.resolve(changes.changes > 0);
         } else {
             const changes = this.set.run(this.nameKey, this.encodeKey(id), DatabaseSet.setValue, version ?? 0);
@@ -474,7 +501,7 @@ export class DatabaseSet<K extends Key = Key> {
      * @param id The key for the entry to remove
      * @param ifVersion If provided the remove will only succeed if the previous version number matches this (atomically checked)
      **/
-    delete(id: K, ifVersion: number): Promise<boolean>
+    delete(id: K, ifVersion: number): Promise<boolean>;
 
     /**
      * Remove the entry with the provided id/key, conditionally based on the provided existing version number
@@ -494,13 +521,13 @@ export class DatabaseSet<K extends Key = Key> {
      * Synchronously store the provided value, using the provided id/key, will return after the data has been written.
      * @param id The key for the entry
      **/
-    addSync(id: K): void
+    addSync(id: K): void;
     /**
      * Synchronously store the provided value, using the provided id/key and version number
      * @param id The key for the entry
      * @param version The version number to assign to this entry
      **/
-    addSync(id: K, version: number): void
+    addSync(id: K, version: number): void;
 
     /**
      * Synchronously store the provided value, using the provided id/key and version number

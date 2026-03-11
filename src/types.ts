@@ -1,4 +1,4 @@
-import { ComAtprotoLabelDefs } from "@atcute/client/lexicons";
+import { ComAtprotoLabelDefs } from '@atcute/client/lexicons';
 
 export interface Label {
     identifier: string;

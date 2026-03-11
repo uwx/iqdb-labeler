@@ -11,7 +11,12 @@ import { AppBskyFeedPost } from '@atcute/bluesky';
 import { KittyAgent } from 'kitty-agent';
 import { Blob, Did, Handle, LegacyBlob, parseResourceUri } from '@atcute/lexicons';
 import { createDb } from './kysely/index.js';
-import { CompositeDidDocumentResolver, CompositeHandleResolver, DohJsonHandleResolver, WellKnownHandleResolver } from '@atcute/identity-resolver';
+import {
+    CompositeDidDocumentResolver,
+    CompositeHandleResolver,
+    DohJsonHandleResolver,
+    WellKnownHandleResolver,
+} from '@atcute/identity-resolver';
 
 //labelerServer.app.addHook('onRequest', request => {
 //    console.log(`onRequest`, request);
@@ -34,7 +39,7 @@ const handleResolver = new CompositeHandleResolver({
     },
 });
 
-export async function labelPost(post: (AppBskyFeedPost.Main & { uri: string, cid: string }) | string) {
+export async function labelPost(post: (AppBskyFeedPost.Main & { uri: string; cid: string }) | string) {
     const uri = typeof post === 'string' ? post : post.uri;
     logger.info(`Trying to label ${uri}`);
 
@@ -56,12 +61,12 @@ export async function labelPost(post: (AppBskyFeedPost.Main & { uri: string, cid
         const gotRecord = await agent.getRecord({
             collection: 'app.bsky.feed.post',
             rkey: result.value.rkey,
-            repo: result.value.repo
+            repo: result.value.repo,
         });
         post = {
             ...gotRecord.value,
             uri: gotRecord.uri.toString(),
-            cid: gotRecord.cid!
+            cid: gotRecord.cid!,
         };
     }
 
@@ -105,32 +110,34 @@ export async function labelPost(post: (AppBskyFeedPost.Main & { uri: string, cid
             .executeTakeFirst();
         let match: Match | undefined = queryResult
             ? {
-                ...queryResult,
-                tags: (JSON.parse(queryResult.tags) as number[]).map(id => BigInt(id))
-            }
+                  ...queryResult,
+                  tags: (JSON.parse(queryResult.tags) as number[]).map((id) => BigInt(id)),
+              }
             : undefined;
 
         if (!match) {
-            const imageUrl = `https://cdn.bsky.app/img/feed_thumbnail/plain/${authorDid}/${imageCid}@jpeg`
+            const imageUrl = `https://cdn.bsky.app/img/feed_thumbnail/plain/${authorDid}/${imageCid}@jpeg`;
             logger.debug(imageUrl);
 
             for (const [matcher, matchCandidate] of await Promise.all(
-                matchers.map(async matcher => [
-                    matcher,
-                    await matcher.getMatch(imageUrl)
-                ] as const)
+                matchers.map(async (matcher) => [matcher, await matcher.getMatch(imageUrl)] as const),
             )) {
                 if (matchCandidate) {
                     if ('error' in matchCandidate) {
                         console.error(matchCandidate['error']);
-                        logger.error({ error: inspect(matchCandidate['error']) }, `During ${imageCid} matching for ${matcher.constructor.name}`)
+                        logger.error(
+                            { error: inspect(matchCandidate['error']) },
+                            `During ${imageCid} matching for ${matcher.constructor.name}`,
+                        );
                     } else {
                         await db
                             .insertInto('matches')
                             .values({
                                 imageUrl: imageCid,
                                 ...matchCandidate,
-                                tags: JSON.stringify(matchCandidate.tags, (_, value) => typeof value === 'bigint' ? Number(value) : value)
+                                tags: JSON.stringify(matchCandidate.tags, (_, value) =>
+                                    typeof value === 'bigint' ? Number(value) : value,
+                                ),
                             })
                             .execute();
                         match = matchCandidate;
@@ -160,10 +167,11 @@ export async function labelPost(post: (AppBskyFeedPost.Main & { uri: string, cid
             .select(['id', 'name'])
             .where('id', 'in', [...labels])
             .execute()
-            .then(result => result
-                .sort((a, b) => a.name?.localeCompare(b.name ?? '') ?? -1)
-                .map(tag => getLabelIdForTag(tag))
-                .filter(labelId => labelId in labelDefinitions)
+            .then((result) =>
+                result
+                    .sort((a, b) => a.name?.localeCompare(b.name ?? '') ?? -1)
+                    .map((tag) => getLabelIdForTag(tag))
+                    .filter((labelId) => labelId in labelDefinitions),
             );
 
         await addLabels(post.uri, labelIdsToAdd, post.cid);
@@ -231,10 +239,13 @@ async function addLabels(uri: string, identifiers: string[], cid: string) {
     try {
         const res = await fetch(`http://${BACKEND_DOMAIN}/label`, {
             method: 'POST',
-            body: await aesEncrypt(JSON.stringify({
-                reference: { uri, cid },
-                labels: identifiers
-            }), { outString: true })
+            body: await aesEncrypt(
+                JSON.stringify({
+                    reference: { uri, cid },
+                    labels: identifiers,
+                }),
+                { outString: true },
+            ),
         });
 
         if (!res.ok) {
@@ -243,7 +254,9 @@ async function addLabels(uri: string, identifiers: string[], cid: string) {
 
         // logger.debug(await res.json());
 
-        logger.info(`Successfully labeled ${uri} with ${identifiers.map(e => labelDefinitions[e].locales[0].name).join(', ')}`);
+        logger.info(
+            `Successfully labeled ${uri} with ${identifiers.map((e) => labelDefinitions[e].locales[0].name).join(', ')}`,
+        );
     } catch (error) {
         logger.error(error, `Error adding new label: ${error}`);
     }

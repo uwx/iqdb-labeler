@@ -30,7 +30,10 @@ export type LogPrettifierFunc = typeof pretty;
  * @param {string|object} inputData A log string or a log-like object.
  * @returns {string} A string that represents the prettified log data.
  */
-export default function pretty(this: PrettyContext & { context: PrettyContext }, inputData: string | object): string | undefined {
+export default function pretty(
+    this: PrettyContext & { context: PrettyContext },
+    inputData: string | object,
+): string | undefined {
     let log;
     if (!isObject(inputData)) {
         const parsed = jsonParser(inputData);

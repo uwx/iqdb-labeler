@@ -1,4 +1,4 @@
-import type { PrettyContext } from "./parse-factory-options";
+import type { PrettyContext } from './parse-factory-options';
 
 interface PrettifyMetadataParams {
     /** The log that may or may not contain metadata to be prettified. */

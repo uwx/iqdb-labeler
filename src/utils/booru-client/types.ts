@@ -1,23 +1,26 @@
-import BaseHandler from "./handlers/_.js";
+import BaseHandler from './handlers/_.js';
 
-export type PartialPost = { id: number, deleted: true } | { id: number, missing: true } | {
-    id: number;
+export type PartialPost =
+    | { id: number; deleted: true }
+    | { id: number; missing: true }
+    | {
+          id: number;
 
-    missing?: false;
-    deleted?: false;
+          missing?: false;
+          deleted?: false;
 
-    image: string[];
-    thumbnail_image: string[];
-    rating: 'g' | 's' | 'q' | 'e';
-    tags: string[];
-    artist: string[];
-    source: string[];
-    created_at: string;
-    ext: string;
+          image: string[];
+          thumbnail_image: string[];
+          rating: 'g' | 's' | 'q' | 'e';
+          tags: string[];
+          artist: string[];
+          source: string[];
+          created_at: string;
+          ext: string;
 
-    md5?: string;
-    sha1?: string;
-}
+          md5?: string;
+          sha1?: string;
+      };
 
 export abstract class Booru<PostKey extends number | string, FullPostType> {
     protected readonly baseHandler = new BaseHandler();
@@ -26,7 +29,7 @@ export abstract class Booru<PostKey extends number | string, FullPostType> {
     abstract getPost(id: PostKey, options: { fullpost: true }): Promise<FullPostType>;
     abstract getPost(id: PostKey, options?: { fullpost?: boolean }): Promise<FullPostType | PartialPost>;
     abstract getLastPostId(): Promise<number>;
-    abstract search(after?: number, limit?: number): Promise<(PartialPost)[]>;
+    abstract search(after?: number, limit?: number): Promise<PartialPost[]>;
 
     getUrlExt(url: string): string;
     getUrlExt(url: undefined): undefined;

@@ -1,4 +1,4 @@
-import { Booru, PartialPost } from "../types.js";
+import { Booru, PartialPost } from '../types.js';
 
 export default class Danbooru extends Booru<number, DanbooruSchema.Post> {
     constructor(private readonly baseUrl = 'https://danbooru.donmai.us') {
@@ -21,18 +21,22 @@ export default class Danbooru extends Booru<number, DanbooruSchema.Post> {
             id: post.id,
             deleted: false,
 
-            image: [post.file_url, post.large_file_url, post.preview_file_url].filter(e => e !== undefined).filter(e => e),
+            image: [post.file_url, post.large_file_url, post.preview_file_url]
+                .filter((e) => e !== undefined)
+                .filter((e) => e),
             thumbnail_image: [
-                post.media_asset.variants?.find(e => e.type === '720x720')?.url,
-                post.media_asset.variants?.find(e => e.type === '360x360')?.url,
-                post.media_asset.variants?.find(e => e.type === '180x180')?.url,
-                post.variants?.find(e => e.type === '720x720')?.url,
-                post.variants?.find(e => e.type === '360x360')?.url,
-                post.variants?.find(e => e.type === '180x180')?.url,
+                post.media_asset.variants?.find((e) => e.type === '720x720')?.url,
+                post.media_asset.variants?.find((e) => e.type === '360x360')?.url,
+                post.media_asset.variants?.find((e) => e.type === '180x180')?.url,
+                post.variants?.find((e) => e.type === '720x720')?.url,
+                post.variants?.find((e) => e.type === '360x360')?.url,
+                post.variants?.find((e) => e.type === '180x180')?.url,
                 post.file_url,
                 post.large_file_url,
                 post.preview_file_url,
-            ].filter(e => e !== undefined).filter(e => e),
+            ]
+                .filter((e) => e !== undefined)
+                .filter((e) => e),
 
             rating: post.rating,
             tags: post.tag_string?.split(' ') ?? [],
@@ -44,7 +48,10 @@ export default class Danbooru extends Booru<number, DanbooruSchema.Post> {
             md5: post.md5,
         } satisfies PartialPost;
 
-        if (!partialPost.thumbnail_image.length && (partialPost.tags.includes('loli') || partialPost.tags.includes('shota'))) {
+        if (
+            !partialPost.thumbnail_image.length &&
+            (partialPost.tags.includes('loli') || partialPost.tags.includes('shota'))
+        ) {
             return { id: post.id, missing: true }; // not available via API.
         }
 
@@ -56,8 +63,9 @@ export default class Danbooru extends Booru<number, DanbooruSchema.Post> {
             limit = 200;
         }
 
-        return await this.baseHandler.get(`${this.baseUrl}/posts.json?limit=${limit}&tags=${encodeURIComponent(`order:id id:>${after}`)}`)
-            .then(e => (e as DanbooruSchema.Post[]).map(e => this.makePartialPost(e)));
+        return await this.baseHandler
+            .get(`${this.baseUrl}/posts.json?limit=${limit}&tags=${encodeURIComponent(`order:id id:>${after}`)}`)
+            .then((e) => (e as DanbooruSchema.Post[]).map((e) => this.makePartialPost(e)));
     }
 
     async getLastPostId(): Promise<number> {

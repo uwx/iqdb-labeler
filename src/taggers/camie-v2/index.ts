@@ -7,20 +7,16 @@ import metadata from './camie-tagger-v2-metadata.json' with { type: 'json' };
 
 const {
     categories,
-    tag_mapping: {
-        idx_to_tag: idxToTag,
-        tag_to_idx: tagToIdx,
-        tag_to_category: tagToCategory,
-    }
+    tag_mapping: { idx_to_tag: idxToTag, tag_to_idx: tagToIdx, tag_to_category: tagToCategory },
 } = metadata.dataset_info;
 
 import sharp from 'sharp';
-import { Match,
-Matcher } from '../matcher';
+import { Match, Matcher } from '../matcher';
 import logger from '../../backend/logger';
 
 const IMAGE_SIZE = 512;
-const mean = [0.485, 0.456, 0.406], std = [0.229, 0.224, 0.225];
+const mean = [0.485, 0.456, 0.406],
+    std = [0.229, 0.224, 0.225];
 
 /**
  * Converts image data to float32 tensors in NCHW format, normalized to ImageNet.
@@ -41,12 +37,12 @@ async function preprocessImageNet(data: Buffer, width: number, height: number) {
         const g = srcView[i * 3 + 1];
         const b = srcView[i * 3 + 2];
 
-        floatData[i] = (r - mean[0]) / std[0];                    // R channel
-        floatData[i + pixelCount] = (g - mean[1]) / std[1];       // G channel
-        floatData[i + 2 * pixelCount] = (b - mean[2]) / std[2];   // B channel
+        floatData[i] = (r - mean[0]) / std[0]; // R channel
+        floatData[i + pixelCount] = (g - mean[1]) / std[1]; // G channel
+        floatData[i + 2 * pixelCount] = (b - mean[2]) / std[2]; // B channel
     }
 
-    return new onnx.Tensor("float32", floatData, [1, 3, height, width]);
+    return new onnx.Tensor('float32', floatData, [1, 3, height, width]);
 }
 
 /**
@@ -81,19 +77,23 @@ async function preprocessImage(imagePath: string | Buffer) {
  * @returns The session.
  */
 async function modelLoad(modelDir = './models') {
-    const onnxPath = path.join(modelDir, "camie-tagger-v2.onnx");
+    const onnxPath = path.join(modelDir, 'camie-tagger-v2.onnx');
 
     return await onnx.InferenceSession.create(onnxPath, {
         executionMode: 'parallel',
         graphOptimizationLevel: 'all',
-        executionProviders: [{
-            name: 'dml'
-        }, {
-            name: 'cuda'
-        }, {
-            name: 'cpu',
-            useArena: true,
-        }]
+        executionProviders: [
+            {
+                name: 'dml',
+            },
+            {
+                name: 'cuda',
+            },
+            {
+                name: 'cpu',
+                useArena: true,
+            },
+        ],
     });
 }
 
@@ -103,7 +103,9 @@ const inputName = session.inputNames[0];
 async function analyze(buffer: ArrayBuffer | Buffer | string) {
     const startTime = Date.now();
 
-    const imagePreprocessed = await preprocessImage(Buffer.isBuffer(buffer) ? buffer : typeof buffer === 'string' ? buffer : Buffer.from(buffer));
+    const imagePreprocessed = await preprocessImage(
+        Buffer.isBuffer(buffer) ? buffer : typeof buffer === 'string' ? buffer : Buffer.from(buffer),
+    );
 
     const results = await session.run({ [inputName]: imagePreprocessed });
 
@@ -114,7 +116,7 @@ async function analyze(buffer: ArrayBuffer | Buffer | string) {
     const logits = results[session.outputNames[1]].data as Float32Array;
 
     // Apply sigmoid to convert logits to probabilities
-    const prob = logits.map(x => 1.0 / (1.0 + Math.exp(-x)));
+    const prob = logits.map((x) => 1.0 / (1.0 + Math.exp(-x)));
 
     const combinedTags: [tag: string, prob: number][] = [];
     const generalThreshold = 0.35;
@@ -127,16 +129,19 @@ async function analyze(buffer: ArrayBuffer | Buffer | string) {
         const p = prob[i];
 
         const tagName = idxToTag[String(i) as keyof typeof idxToTag];
-        const category = tagToCategory[tagName as keyof typeof tagToCategory] as 'year' | 'rating' | 'meta' | 'character' | 'artist' | 'copyright' | 'general';
+        const category = tagToCategory[tagName as keyof typeof tagToCategory] as
+            | 'year'
+            | 'rating'
+            | 'meta'
+            | 'character'
+            | 'artist'
+            | 'copyright'
+            | 'general';
 
-        if (tagName == 'rating_general')
-            ratings[0] = p;
-        if (tagName == 'rating_sensitive')
-            ratings[1] = p;
-        if (tagName == 'rating_questionable')
-            ratings[2] = p;
-        if (tagName == 'rating_explicit')
-            ratings[3] = p;
+        if (tagName == 'rating_general') ratings[0] = p;
+        if (tagName == 'rating_sensitive') ratings[1] = p;
+        if (tagName == 'rating_questionable') ratings[2] = p;
+        if (tagName == 'rating_explicit') ratings[3] = p;
 
         // logger.debug(`Tag: ${tagName}, Category: ${category}, Probability: ${p.toFixed(4)}`);
 
@@ -161,7 +166,8 @@ async function analyze(buffer: ArrayBuffer | Buffer | string) {
         rating = ['q', ratings[2]];
     } else if (ratings[3] >= ratings[0] && ratings[3] >= ratings[1] && ratings[3] >= ratings[2]) {
         rating = ['e', ratings[3]];
-    } else { // all ratings are equal, go for explicit as a fallback
+    } else {
+        // all ratings are equal, go for explicit as a fallback
         rating = ['e', ratings[3]];
     }
 
@@ -171,16 +177,14 @@ async function analyze(buffer: ArrayBuffer | Buffer | string) {
 export class CamieMatcher extends Matcher {
     async getMatchImpl(imageUrl: string) {
         const startTime = Date.now();
-        const buffer = await fetch(imageUrl).then(e => e.blob());
+        const buffer = await fetch(imageUrl).then((e) => e.blob());
         const endTime = Date.now();
 
         logger.debug(`Image fetch time: ${endTime - startTime} ms`);
 
         const analyzed = await analyze(await buffer.arrayBuffer());
 
-        const tags: bigint[] = await this.getTagIdsByNameOrAlias(
-            analyzed.tags.map(([tag, p]) => tag)
-        );
+        const tags: bigint[] = await this.getTagIdsByNameOrAlias(analyzed.tags.map(([tag, p]) => tag));
 
         if (tags.length > 0) {
             return { similarity: Math.max(...analyzed.tags.map(([tag, p]) => p)), tags } satisfies Match;

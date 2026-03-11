@@ -12,7 +12,7 @@ import splitPropertyKey from './split-property-key';
  *
  * @returns {*}
  */
-export default function getPropertyValue(obj: object, property: string | string[]): any { 
+export default function getPropertyValue(obj: object, property: string | string[]): any {
     const props = Array.isArray(property) ? property : splitPropertyKey(property);
 
     for (const prop of props) {

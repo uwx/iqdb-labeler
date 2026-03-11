@@ -31,7 +31,7 @@ export interface PrettyContext {
     /** A hash of level names to level numbers, e.g. `{ info: 30 }`. */
     customLevels: Record<string | number, string | number>; // string | number because handleCustomLevelsOpts can return numbers
     /** A hash of custom prettifier functions. */
-    customPrettifiers: Record<string, (value: any, key: string, log: object, context: { colors: Colorette }) => string>; 
+    customPrettifiers: Record<string, (value: any, key: string, log: object, context: { colors: Colorette }) => string>;
     /** Comprised of `customLevels` and `customLevelNames` if such options are provided. */
     customProperties: {
         customLevels?: Record<string | number, string | number>;

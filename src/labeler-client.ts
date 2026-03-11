@@ -8,7 +8,7 @@ import logger from './backend/logger.js';
 
 import { access, readFile } from 'node:fs/promises';
 import { getDbConfigItem, setDbConfigItem } from './utils/db-config.js';
-import { createDb,migrateToLatest } from './backend/kysely/index.js';
+import { createDb, migrateToLatest } from './backend/kysely/index.js';
 import { is } from '@atcute/lexicons';
 import { AppBskyFeedLike, AppBskyFeedPost, AppBskyGraphFollow } from '@atcute/bluesky';
 import { KittyAgent } from 'kitty-agent';
@@ -26,14 +26,20 @@ function epochUsToDateTime(cursor: number): string {
 }
 
 logger.info('Trying to read cursor from database...');
-cursor = await getDbConfigItem('jetstreamCursor') ?? 0;
+cursor = (await getDbConfigItem('jetstreamCursor')) ?? 0;
 if (!cursor) {
     logger.info('Cursor not found in database. trying to read from cursor.txt...');
-    if (await access('cursor.txt').then(() => true).catch(() => false)) {
-        cursor = Number(await readFile('cursor.txt', 'utf-8'))
+    if (
+        await access('cursor.txt')
+            .then(() => true)
+            .catch(() => false)
+    ) {
+        cursor = Number(await readFile('cursor.txt', 'utf-8'));
         logger.info(`Cursor found: ${cursor} (${epochUsToDateTime(cursor)})`);
     } else {
-        logger.info(`Cursor not found in database or cursor.txt, setting cursor to: ${cursor} (${epochUsToDateTime(cursor)})`);
+        logger.info(
+            `Cursor not found in database or cursor.txt, setting cursor to: ${cursor} (${epochUsToDateTime(cursor)})`,
+        );
         cursor = Math.floor(Date.now() * 1000);
     }
     await setDbConfigItem('jetstreamCursor', cursor);
@@ -70,24 +76,27 @@ logger.info('Hydrating followers and likers into database...');
     {
         let cursor: string | undefined = undefined;
         do {
-            const response: ClientResponse<BlueMicrocosmLinksGetBacklinks.mainSchema, { params: { subject: `did:${string}:${string}`; source: string; }; }> = await agent.get('blue.microcosm.links.getBacklinks', {
+            const response: ClientResponse<
+                BlueMicrocosmLinksGetBacklinks.mainSchema,
+                { params: { subject: `did:${string}:${string}`; source: string } }
+            > = await agent.get('blue.microcosm.links.getBacklinks', {
                 params: {
                     subject: DID,
                     source: 'app.bsky.graph.follow:subject',
                     cursor: cursor,
-                }
+                },
             });
 
             if (!response.ok) {
                 logger.error(response.data, `Failed to fetch followers: ${response.status}`);
                 break;
             } else {
-                const followers = response.data.records.map(link => ({ did: link.did, rkey: link.rkey }));
+                const followers = response.data.records.map((link) => ({ did: link.did, rkey: link.rkey }));
                 if (followers.length > 0) {
                     await db
                         .insertInto('followers')
                         .values(followers)
-                        .onConflict((oc) => oc.column('did').doUpdateSet(eb => ({ rkey: eb.ref('excluded.rkey') })))
+                        .onConflict((oc) => oc.column('did').doUpdateSet((eb) => ({ rkey: eb.ref('excluded.rkey') })))
                         .execute()
                         .catch((error: unknown) => {
                             logger.error(`Unexpected error inserting followers: ${error}`);
@@ -102,24 +111,27 @@ logger.info('Hydrating followers and likers into database...');
     {
         let cursor: string | undefined = undefined;
         do {
-            const response: ClientResponse<BlueMicrocosmLinksGetBacklinks.mainSchema, { params: { subject: `at://${string}/app.bsky.labeler.service/self`; source: string; }; }> = await agent.get('blue.microcosm.links.getBacklinks', {
+            const response: ClientResponse<
+                BlueMicrocosmLinksGetBacklinks.mainSchema,
+                { params: { subject: `at://${string}/app.bsky.labeler.service/self`; source: string } }
+            > = await agent.get('blue.microcosm.links.getBacklinks', {
                 params: {
                     subject: `at://${DID}/app.bsky.labeler.service/self`,
                     source: 'app.bsky.feed.like:subject.uri',
                     cursor: cursor,
-                }
+                },
             });
 
             if (!response.ok) {
                 logger.error(response.data, `Failed to fetch likers: ${response.status}`);
                 break;
             } else {
-                const likers = response.data.records.map(link => ({ did: link.did, rkey: link.rkey }));
+                const likers = response.data.records.map((link) => ({ did: link.did, rkey: link.rkey }));
                 if (likers.length > 0) {
                     await db
                         .insertInto('likers')
                         .values(likers)
-                        .onConflict((oc) => oc.column('did').doUpdateSet(eb => ({ rkey: eb.ref('excluded.rkey') })))
+                        .onConflict((oc) => oc.column('did').doUpdateSet((eb) => ({ rkey: eb.ref('excluded.rkey') })))
                         .execute()
                         .catch((error: unknown) => {
                             logger.error(`Unexpected error inserting likers: ${error}`);
@@ -133,16 +145,14 @@ logger.info('Hydrating followers and likers into database...');
 logger.info('Hydrated followers and likers into database.');
 
 const jetstream = new JetstreamSubscription({
-    wantedCollections: [
-        'app.bsky.feed.post',
-        'app.bsky.graph.follow',
-        'app.bsky.feed.like',
-    ],
+    wantedCollections: ['app.bsky.feed.post', 'app.bsky.graph.follow', 'app.bsky.feed.like'],
     url: FIREHOSE_URL,
-    cursor: cursor
+    cursor: cursor,
 });
 
-logger.info(`Connected to Jetstream at ${FIREHOSE_URL} with cursor ${jetstream.cursor} (${epochUsToDateTime(jetstream.cursor!)})`);
+logger.info(
+    `Connected to Jetstream at ${FIREHOSE_URL} with cursor ${jetstream.cursor} (${epochUsToDateTime(jetstream.cursor!)})`,
+);
 cursorUpdateInterval = setInterval(() => {
     if (jetstream.cursor) {
         logger.info(`Cursor updated to: ${jetstream.cursor} (${epochUsToDateTime(jetstream.cursor)})`);
@@ -169,7 +179,7 @@ for await (const event of jetstream) {
             if (commit.operation === 'create') {
                 const cid = commit.cid;
                 const record = commit.record;
-                
+
                 if (commit.collection === 'app.bsky.graph.follow') {
                     const subject = (record as AppBskyGraphFollow.Main)?.subject;
 
@@ -209,14 +219,10 @@ for await (const event of jetstream) {
                         await db
                             .selectFrom('followers')
                             .selectAll()
-                            .unionAll((eb) =>
-                                eb
-                                    .selectFrom('likers')
-                                    .selectAll()
-                            )
+                            .unionAll((eb) => eb.selectFrom('likers').selectAll())
                             .where('did', '=', did)
                             .executeTakeFirst()
-                            .then(async result => {
+                            .then(async (result) => {
                                 if (result) {
                                     await labelPost(uri).catch((error: unknown) => {
                                         logger.error(error, `Unexpected error labeling ${uri}: ${error}`);
@@ -234,19 +240,15 @@ for await (const event of jetstream) {
                     await db
                         .selectFrom('followers')
                         .selectAll()
-                        .unionAll((eb) =>
-                            eb
-                                .selectFrom('likers')
-                                .selectAll()
-                        )
+                        .unionAll((eb) => eb.selectFrom('likers').selectAll())
                         .where('did', '=', did)
                         .executeTakeFirst()
-                        .then(async result => {
+                        .then(async (result) => {
                             if (result || labelAnything) {
                                 await labelPost({
                                     ...(record as AppBskyFeedPost.Main),
                                     uri,
-                                    cid
+                                    cid,
                                 }).catch((error: unknown) => {
                                     logger.error(error, `Unexpected error labeling ${uri}: ${error}`);
                                 });

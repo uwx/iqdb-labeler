@@ -4,24 +4,23 @@ import logger from './backend/logger.js';
 import feedGenerator, { useDidWeb } from './services/feed-generator.js';
 import { aesDecrypt } from './backend/crypto.js';
 import { serve } from '@hono/node-server';
-import {
-    json,
-    XRPCRouter, XRPCSubscriptionError
-} from '@atcute/xrpc-server';
+import { json, XRPCRouter, XRPCSubscriptionError } from '@atcute/xrpc-server';
 import { createNodeWebSocket } from '@atcute/xrpc-server-node';
 import { Hono } from 'hono';
 import { cors } from '@atcute/xrpc-server/middlewares/cors';
-import { ComAtprotoLabelDefs, ComAtprotoLabelQueryLabels, ComAtprotoLabelSubscribeLabels, ComAtprotoRepoStrongRef } from '@atcute/atproto';
+import {
+    ComAtprotoLabelDefs,
+    ComAtprotoLabelQueryLabels,
+    ComAtprotoLabelSubscribeLabels,
+    ComAtprotoRepoStrongRef,
+} from '@atcute/atproto';
 import { SqliteDbProvider } from './utils/nodesqlite-db-provider.ts';
 import { P256PrivateKey } from '@atcute/crypto';
-import {
-    FutureCursorError,
-    Labeler
-} from '@atcute/labeler';
+import { FutureCursorError, Labeler } from '@atcute/labeler';
 import { DbLabelStore } from './utils/db-label-store.ts';
-import { fromString as ui8FromString } from "uint8arrays/from-string";
+import { fromString as ui8FromString } from 'uint8arrays/from-string';
 import { createDb, migrateToLatest } from './backend/kysely/index.ts';
-import { createRequestListener } from '@remix-run/node-fetch-server'
+import { createRequestListener } from '@remix-run/node-fetch-server';
 import * as http from 'node:http';
 import { ResourceUri } from '@atcute/lexicons';
 
@@ -49,7 +48,7 @@ router.addSubscription(ComAtprotoLabelSubscribeLabels, {
 
                 yield {
                     ...label,
-                    $type: 'com.atproto.label.subscribeLabels#labels'
+                    $type: 'com.atproto.label.subscribeLabels#labels',
                 };
             }
         } catch (err) {
@@ -67,26 +66,31 @@ router.addQuery(ComAtprotoLabelQueryLabels, {
             cursor && !isNaN(Number(cursor)) ? Number(cursor) : undefined,
             limit ?? 100,
             uriPatterns,
-            sources
+            sources,
         );
 
-        logger.debug(events, `Queried labels with patterns ${uriPatterns?.join(', ')}, sources ${sources?.join(', ')}, cursor ${cursor}, limit ${limit}. Found ${events.length} events.`);
+        logger.debug(
+            events,
+            `Queried labels with patterns ${uriPatterns?.join(', ')}, sources ${sources?.join(', ')}, cursor ${cursor}, limit ${limit}. Found ${events.length} events.`,
+        );
 
         return json({
-            labels: events.map(event => ({
-                src: event.src,
-                uri: event.uri as ResourceUri,
-                cid: event.cid ?? undefined,
-                val: event.val,
-                neg: event.neg,
-                cts: event.cts,
-                exp: event.exp ?? undefined,
-            } satisfies ComAtprotoLabelDefs.Label)),
+            labels: events.map(
+                (event) =>
+                    ({
+                        src: event.src,
+                        uri: event.uri as ResourceUri,
+                        cid: event.cid ?? undefined,
+                        val: event.val,
+                        neg: event.neg,
+                        cts: event.cts,
+                        exp: event.exp ?? undefined,
+                    }) satisfies ComAtprotoLabelDefs.Label,
+            ),
             cursor: undefined, // TODO implement cursor-based pagination
         });
-    }
-})
-
+    },
+});
 
 const labelerServer = new Hono();
 
@@ -121,34 +125,36 @@ export interface BotLabelRecordOptions {
     comment?: string | undefined;
 }
 
-labelerServer.post('/label', async c => {
+labelerServer.post('/label', async (c) => {
     const decryptedBody: BotLabelRecordOptions = JSON.parse(await aesDecrypt(await c.req.text()));
 
     if (!('uri' in decryptedBody.reference)) {
         return c.text('No URI', 400);
     }
 
-    logger.debug(`Received label request for ${decryptedBody.reference.uri} with labels: ${decryptedBody.labels.join(', ')}`);
+    logger.debug(
+        `Received label request for ${decryptedBody.reference.uri} with labels: ${decryptedBody.labels.join(', ')}`,
+    );
 
     const labels = await labeler.applyLabels(
-        decryptedBody.labels.map(label => {
+        decryptedBody.labels.map((label) => {
             return {
                 uri: decryptedBody.reference.uri,
                 cid: decryptedBody.reference.cid,
                 value: label,
                 issuedAt: new Date().toISOString(),
             };
-        })
+        }),
     );
 
     return c.json(labels, 200);
 });
 
-labelerServer.get('/robots.txt', c => {
+labelerServer.get('/robots.txt', (c) => {
     return c.text('User-agent: *\nDisallow: /', 200);
 });
 
-let server = http.createServer(createRequestListener(labelerServer.fetch))
+let server = http.createServer(createRequestListener(labelerServer.fetch));
 
 injectWebSocket(server, router);
 

@@ -53,20 +53,24 @@ const logger = pino(
                 translateTime: 'yyyy-mm-dd HH:MM:ss.l o',
                 ignore: 'pid,hostname,category,id,startTime',
                 messageFormat(log, messageKey, levelLabel, extras) {
-                    return log.category ? `${colors.gray(log.category as string | undefined ?? 'General')} ${log[messageKey]}` : log[messageKey] as string;
+                    return log.category
+                        ? `${colors.gray((log.category as string | undefined) ?? 'General')} ${log[messageKey]}`
+                        : (log[messageKey] as string);
                 },
                 customPrettifiers: {
                     caller: (caller) => colors.gray(formatCaller(caller as CallSiteObject & { path: string })),
-                    time: (timestamp) => colors.gray(formatTimeSpan(new Date(`${timestamp}`).getTime() - startTime.getTime())),
+                    time: (timestamp) =>
+                        colors.gray(formatTimeSpan(new Date(`${timestamp}`).getTime() - startTime.getTime())),
                     // category: (category) => colors.gray(String(category)),
-                    level: (level) => ({
-                        10: '🔍',
-                        20: '🐛',
-                        30: '✨',
-                        40: '⚠️',
-                        50: '🚨',
-                        60: '💀',
-                    }[level as any as number])!
+                    level: (level) =>
+                        ({
+                            10: '🔍',
+                            20: '🐛',
+                            30: '✨',
+                            40: '⚠️',
+                            50: '🚨',
+                            60: '💀',
+                        })[level as any as number]!,
                 },
             }),
         },

@@ -1,4 +1,4 @@
-import Gelbooru from "./gelbooru.js";
+import Gelbooru from './gelbooru.js';
 
 export default class Rule34 extends Gelbooru {
     constructor() {

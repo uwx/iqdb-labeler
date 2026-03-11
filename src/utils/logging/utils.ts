@@ -1,4 +1,4 @@
-import type { CallSiteObject } from "node:util";
+import type { CallSiteObject } from 'node:util';
 
 export function formatTimeSpan(diff: number) {
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
@@ -15,8 +15,10 @@ export function formatTimeSpan(diff: number) {
 
     const millis = diff;
 
-    if (days > 0) return `+${days}d ${hours}h ${mins.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${millis.toString().padStart(3, '0')}`;
-    if (hours > 0) return `+${hours}h ${mins}:${seconds.toString().padStart(2, '0')}.${millis.toString().padStart(3, '0')}`;
+    if (days > 0)
+        return `+${days}d ${hours}h ${mins.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${millis.toString().padStart(3, '0')}`;
+    if (hours > 0)
+        return `+${hours}h ${mins}:${seconds.toString().padStart(2, '0')}.${millis.toString().padStart(3, '0')}`;
     if (mins > 0) return `+${mins}:${seconds.toString().padStart(2, '0')}.${millis.toString().padStart(3, '0')}`;
     return `+${seconds.toString().padStart(2, '0')}.${millis.toString().padStart(3, '0')}`;
 }

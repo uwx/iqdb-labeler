@@ -1,13 +1,13 @@
 import 'dotenv/config';
 
-import { BSKY_IDENTIFIER, BSKY_PASSWORD, PORT,SIGNING_KEY } from "../../config.js";
-import { plcClearLabeler, plcRequestToken, plcSetupLabeler } from "./plc.js";
+import { BSKY_IDENTIFIER, BSKY_PASSWORD, PORT, SIGNING_KEY } from '../../config.js';
+import { plcClearLabeler, plcRequestToken, plcSetupLabeler } from './plc.js';
 import logger from '../../backend/logger.js';
-import { access, readFile, writeFile } from "node:fs/promises";
-import { createInterface } from "node:readline/promises";
-import * as k256 from "@noble/secp256k1";
-import { fromString as ui8FromString } from "uint8arrays/from-string";
-import { toString as ui8ToString } from "uint8arrays/to-string";
+import { access, readFile, writeFile } from 'node:fs/promises';
+import { createInterface } from 'node:readline/promises';
+import * as k256 from '@noble/secp256k1';
+import { fromString as ui8FromString } from 'uint8arrays/from-string';
+import { toString as ui8ToString } from 'uint8arrays/to-string';
 
 export function genPrivateAndPublicKeys(privateKey?: Uint8Array) {
     privateKey = privateKey ?? k256.utils.randomSecretKey();
@@ -25,7 +25,11 @@ export async function setupTunnel(url: string) {
         await writeFile('./.labeler-keys', ui8ToString(keys[0], 'hex'), 'ascii');
     }
 
-    if (await access('./.plc-token').then(() => true).catch(() => false)) {
+    if (
+        await access('./.plc-token')
+            .then(() => true)
+            .catch(() => false)
+    ) {
         let token = await readFile('./.plc-token', 'utf-8');
 
         try {
@@ -42,11 +46,16 @@ export async function setupTunnel(url: string) {
                 password: BSKY_PASSWORD,
                 plcToken: token,
                 endpoint: url,
-                privateKey: keys[0]
+                privateKey: keys[0],
             });
             logger.info('Set up labeler');
         } catch (err) {
-            if (typeof err === 'object' && err != null && 'kind' in err && (err.kind === 'ExpiredToken' || err.kind === 'InvalidToken')) {
+            if (
+                typeof err === 'object' &&
+                err != null &&
+                'kind' in err &&
+                (err.kind === 'ExpiredToken' || err.kind === 'InvalidToken')
+            ) {
                 logger.info('Token expired, refreshing');
                 await plcRequestToken({
                     identifier: BSKY_IDENTIFIER,
@@ -55,7 +64,7 @@ export async function setupTunnel(url: string) {
 
                 const rl = createInterface({
                     input: process.stdin,
-                    output: process.stdout
+                    output: process.stdout,
                 });
 
                 token = await rl.question('Input the token received in your email > ');
@@ -76,7 +85,7 @@ export async function setupTunnel(url: string) {
                     password: BSKY_PASSWORD,
                     plcToken: token,
                     endpoint: url,
-                    privateKey: keys[0]
+                    privateKey: keys[0],
                 });
                 logger.info('Set up labeler');
             } else {
@@ -91,7 +100,7 @@ export async function setupTunnel(url: string) {
 
         const rl = createInterface({
             input: process.stdin,
-            output: process.stdout
+            output: process.stdout,
         });
 
         const token = await rl.question('Input the token received in your email: ');
@@ -112,9 +121,8 @@ export async function setupTunnel(url: string) {
             password: BSKY_PASSWORD,
             plcToken: token,
             endpoint: url,
-            privateKey: keys[0]
+            privateKey: keys[0],
         });
         logger.info('Set up labeler');
     }
-
 }

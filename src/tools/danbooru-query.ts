@@ -6,7 +6,7 @@ import StreamToAsyncIterator from './util/stream-to-async-iterator.js';
 
 // Creates a client
 const bigqueryClient = new BigQuery({
-    projectId: process.env.GCLOUD_PROJECT_ID
+    projectId: process.env.GCLOUD_PROJECT_ID,
 });
 
 function sql(strings: TemplateStringsArray, ...values: any[]) {
@@ -75,8 +75,8 @@ const queries = {
         reason,
         consequent_name
     FROM danbooru1.danbooru_public.tag_aliases;
-    `
-}
+    `,
+};
 
 await mkdir('./danbooru-data', { recursive: true });
 

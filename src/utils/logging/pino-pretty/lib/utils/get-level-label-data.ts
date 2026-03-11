@@ -14,11 +14,14 @@ export default function getLevelLabelData(
     useOnlyCustomProps: boolean,
     customLevels: object,
     customLevelNames: object,
-): (level: string | number) => [string, string | number] { 
-    const levels = (useOnlyCustomProps ? customLevels || LEVELS : Object.assign({}, LEVELS, customLevels)) as Record<string | number, string>;
-    const levelNames = (useOnlyCustomProps
-        ? customLevelNames || LEVEL_NAMES
-        : Object.assign({}, LEVEL_NAMES, customLevelNames)) as Record<string | number, string>;
+): (level: string | number) => [string, string | number] {
+    const levels = (useOnlyCustomProps ? customLevels || LEVELS : Object.assign({}, LEVELS, customLevels)) as Record<
+        string | number,
+        string
+    >;
+    const levelNames = (
+        useOnlyCustomProps ? customLevelNames || LEVEL_NAMES : Object.assign({}, LEVEL_NAMES, customLevelNames)
+    ) as Record<string | number, string>;
     return (level) => {
         let levelNum: string | number = 'default';
         if (Number.isInteger(+level)) {

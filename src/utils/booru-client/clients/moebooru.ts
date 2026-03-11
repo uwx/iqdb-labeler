@@ -1,4 +1,4 @@
-import { Booru, PartialPost } from "../types.js";
+import { Booru, PartialPost } from '../types.js';
 
 export default abstract class Moebooru extends Booru<number, KonachanPost> {
     constructor(private readonly baseUrl: string) {
@@ -23,14 +23,18 @@ export default abstract class Moebooru extends Booru<number, KonachanPost> {
             id: post.id,
             deleted: false,
 
-            image: [post.file_url, post.jpeg_url, post.sample_url, post.preview_url].filter(e => e !== undefined).filter(e => e),
-            thumbnail_image: [post.sample_url, post.preview_url, post.jpeg_url, post.file_url].filter(e => e !== undefined).filter(e => e),
+            image: [post.file_url, post.jpeg_url, post.sample_url, post.preview_url]
+                .filter((e) => e !== undefined)
+                .filter((e) => e),
+            thumbnail_image: [post.sample_url, post.preview_url, post.jpeg_url, post.file_url]
+                .filter((e) => e !== undefined)
+                .filter((e) => e),
 
             rating: post.rating,
             tags: post.tags.split(' '),
             artist: [],
             source: post.source ? [post.source] : [],
-            created_at: ''+post.created_at,
+            created_at: '' + post.created_at,
             ext: this.getUrlExt(post.file_url || post.jpeg_url || post.sample_url || post.preview_url), // TODO
 
             md5: post.md5,
@@ -42,8 +46,9 @@ export default abstract class Moebooru extends Booru<number, KonachanPost> {
             limit = 100;
         }
 
-        return await this.baseHandler.get(`${this.baseUrl}/post/index.json?limit=${limit}&tags=${encodeURIComponent(`order:id id:>${after}`)}`)
-            .then(e => (e as KonachanPost[]).map(e => this.makePartialPost(e)));
+        return await this.baseHandler
+            .get(`${this.baseUrl}/post/index.json?limit=${limit}&tags=${encodeURIComponent(`order:id id:>${after}`)}`)
+            .then((e) => (e as KonachanPost[]).map((e) => this.makePartialPost(e)));
     }
 
     async getLastPostId(): Promise<number> {
@@ -53,40 +58,40 @@ export default abstract class Moebooru extends Booru<number, KonachanPost> {
 }
 
 export interface KonachanPost {
-    id:                    number;
-    tags:                  string;
-    created_at:            number;
-    creator_id:            number;
-    author:                string;
-    change:                number;
-    source:                string;
-    score:                 number;
-    md5:                   string;
-    file_size:             number;
-    file_url:              string;
-    is_shown_in_index:     boolean;
-    preview_url:           string;
-    preview_width:         number;
-    preview_height:        number;
-    actual_preview_width:  number;
+    id: number;
+    tags: string;
+    created_at: number;
+    creator_id: number;
+    author: string;
+    change: number;
+    source: string;
+    score: number;
+    md5: string;
+    file_size: number;
+    file_url: string;
+    is_shown_in_index: boolean;
+    preview_url: string;
+    preview_width: number;
+    preview_height: number;
+    actual_preview_width: number;
     actual_preview_height: number;
-    sample_url:            string;
-    sample_width:          number;
-    sample_height:         number;
-    sample_file_size:      number;
-    jpeg_url:              string;
-    jpeg_width:            number;
-    jpeg_height:           number;
-    jpeg_file_size:        number;
-    rating:                'e' | 'q' | 's';
-    has_children:          boolean;
-    parent_id:             number | null;
-    status:                string;
-    width:                 number;
-    height:                number;
-    is_held:               boolean;
+    sample_url: string;
+    sample_width: number;
+    sample_height: number;
+    sample_file_size: number;
+    jpeg_url: string;
+    jpeg_width: number;
+    jpeg_height: number;
+    jpeg_file_size: number;
+    rating: 'e' | 'q' | 's';
+    has_children: boolean;
+    parent_id: number | null;
+    status: string;
+    width: number;
+    height: number;
+    is_held: boolean;
     frames_pending_string: string;
-    frames_pending:        unknown[];
-    frames_string:         string;
-    frames:                unknown[];
+    frames_pending: unknown[];
+    frames_string: string;
+    frames: unknown[];
 }
