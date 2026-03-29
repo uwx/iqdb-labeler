@@ -3,7 +3,7 @@ import { DB_PATH, DID, PORT, SIGNING_KEY } from './config.js';
 import logger from './backend/logger.js';
 import feedGenerator, { useDidWeb } from './services/feed-generator.js';
 import { aesDecrypt } from './backend/crypto.js';
-import { serve } from '@hono/node-server';
+import { createRequestListener } from '@remix-run/node-fetch-server'
 import { json, XRPCRouter, XRPCSubscriptionError } from '@atcute/xrpc-server';
 import { createNodeWebSocket } from '@atcute/xrpc-server-node';
 import { Hono } from 'hono';
@@ -20,7 +20,6 @@ import { FutureCursorError, Labeler } from '@atcute/labeler';
 import { DbLabelStore } from './utils/db-label-store.ts';
 import { fromString as ui8FromString } from 'uint8arrays/from-string';
 import { createDb, migrateToLatest } from './backend/kysely/index.ts';
-import { createRequestListener } from '@remix-run/node-fetch-server';
 import * as http from 'node:http';
 import { ResourceUri } from '@atcute/lexicons';
 
@@ -154,7 +153,7 @@ labelerServer.get('/robots.txt', (c) => {
     return c.text('User-agent: *\nDisallow: /', 200);
 });
 
-let server = http.createServer(createRequestListener(labelerServer.fetch));
+const server = http.createServer(createRequestListener(labelerServer.fetch));
 
 injectWebSocket(server, router);
 

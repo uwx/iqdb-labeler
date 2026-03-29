@@ -60,7 +60,6 @@
         "@fastify/websocket": "^11.2.0",
         "@google-cloud/bigquery": "^8.1.1",
         "@gradio/client": "^2.0.4",
-        "@hono/node-server": "^1.19.9",
         "@mary-ext/simple-event-emitter": "^1.0.1",
         "@noble/curves": "^2.0.1",
         "@noble/hashes": "^2.0.1",
