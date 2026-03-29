@@ -3,7 +3,7 @@ import { DB_PATH, DID, PORT, SIGNING_KEY } from './config.js';
 import logger from './backend/logger.js';
 import feedGenerator, { useDidWeb } from './services/feed-generator.js';
 import { aesDecrypt } from './backend/crypto.js';
-import { createRequestListener } from '@remix-run/node-fetch-server'
+import { createRequestListener } from '@remix-run/node-fetch-server';
 import { json, XRPCRouter, XRPCSubscriptionError } from '@atcute/xrpc-server';
 import { createNodeWebSocket } from '@atcute/xrpc-server-node';
 import { Hono } from 'hono';
@@ -21,7 +21,7 @@ import { DbLabelStore } from './utils/db-label-store.ts';
 import { fromString as ui8FromString } from 'uint8arrays/from-string';
 import { createDb, migrateToLatest } from './backend/kysely/index.ts';
 import * as http from 'node:http';
-import { ResourceUri } from '@atcute/lexicons';
+import type { ResourceUri } from '@atcute/lexicons';
 
 await migrateToLatest(createDb(DB_PATH));
 
