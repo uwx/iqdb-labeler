@@ -8,7 +8,9 @@ services:
             - ./models:/app/models:ro
             - ./danbooru-data:/app/danbooru-data:ro
             - ./cursor.txt:/app/cursor.txt
-            - db:/app/database
+            - ./labels.db:/app/database/labels.db
+            - ./labels.db-shm:/app/database/labels.db-shm
+            - ./labels.db-wal:/app/database/labels.db-wal
         restart: unless-stopped
         environment:
             - DB_PATH=/app/database/labels.db
