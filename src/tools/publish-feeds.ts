@@ -35,7 +35,7 @@ async function publishFeeds() {
         } = await agent.paginatedList({
             repo: session.did,
             collection: 'app.bsky.feed.generator',
-            limit: 100,
+            // no explicit limit: kitty-agent's paginationHelper sends limit: 0 after one page when given one
             reverse: true,
         });
 

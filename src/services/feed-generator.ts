@@ -112,9 +112,8 @@ export default function(router: XRPCRouter, labelerDb: DbProvider) {
 
 export function useDidWeb(hono: Hono) {
 
-    hono.get('/.well-known/did.json', async (c) => {
-        c.status(200);
-        c.json({
+    hono.get('/.well-known/did.json', (c) => {
+        return c.json({
             '@context': ['https://www.w3.org/ns/did/v1'],
             id: `did:web:${FEEDS_DOMAIN}`,
             service: [

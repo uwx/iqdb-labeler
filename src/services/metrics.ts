@@ -8,6 +8,6 @@ export default function plugin(hono: Hono) {
     hono.get('/metrics', async (c) => {
         const metrics = await register.metrics();
         c.header('Content-Type', register.contentType);
-        c.text(metrics);
+        return c.text(metrics);
     });
 }
