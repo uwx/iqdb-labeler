@@ -99,7 +99,10 @@ export default function (router: XRPCRouter, labelerDb: DbProvider) {
                     (e) => ({ post: e.uri as ResourceUri }) satisfies AppBskyFeedDefs.SkeletonFeedPost,
                 ),
 
-                ...(queryResult.length > 0 ? { cursor: String(Math.max(...queryResult.map((e) => e.id))) } : {}),
+                // id is a BigInt column; Math.max throws "Cannot convert a BigInt value to a number"
+                ...(queryResult.length > 0
+                    ? { cursor: String(queryResult.reduce((a, e) => (e.id > a ? e.id : a), queryResult[0].id)) }
+                    : {}),
             });
         },
     });

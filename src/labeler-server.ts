@@ -37,6 +37,11 @@ const { adapter, injectWebSocket } = createNodeWebSocket();
 const router = new XRPCRouter({
     websocket: adapter,
     middlewares: [cors()],
+    // the default handler swallows the exception without logging it
+    handleException(err, request) {
+        logger.error({ err }, `Unhandled error for ${new URL(request.url).pathname}`);
+        return Response.json({ error: 'InternalServerError', message: 'an exception happened whilst processing this request' }, { status: 500 });
+    },
 });
 
 router.addSubscription(ComAtprotoLabelSubscribeLabels, {
