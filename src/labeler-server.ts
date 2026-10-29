@@ -6,6 +6,7 @@ import { aesDecrypt } from './backend/crypto.js';
 import { createRequestListener } from '@remix-run/node-fetch-server';
 import { json, XRPCRouter, XRPCSubscriptionError } from '@atcute/xrpc-server';
 import { createNodeWebSocket } from '@atcute/xrpc-server-node';
+import { encode } from '@atcute/cbor';
 import { Hono } from 'hono';
 import { cors } from '@atcute/xrpc-server/middlewares/cors';
 import {
@@ -28,9 +29,15 @@ await migrateToLatest(createDb(DB_PATH));
 
 const labelerDb = new SqliteDbProvider(DB_PATH);
 
+// how many labels per post are published to the appview; the rest are stored
+// for feeds and queryLabels only. 4 keeps the 5/s, 50k/day budget workable.
+const MAX_LABELS_PER_POST = Math.max(1, Number(process.env.MAX_LABELS_PER_POST) || 4);
+
+const signingKey = Secp256k1PrivateKey.importRaw(ui8FromString(SIGNING_KEY, 'hex'));
+
 const labeler = new Labeler({
     serviceDid: DID,
-    signingKey: await Secp256k1PrivateKey.importRaw(ui8FromString(SIGNING_KEY, 'hex')),
+    signingKey: await signingKey,
     store: new DbLabelStore(labelerDb),
 });
 
@@ -149,25 +156,40 @@ labelerServer.post('/label', async (c) => {
     );
     const wanted = [...new Set(decryptedBody.labels)].filter((val) => !existing.has(val));
 
-    const allowed = await reserveLabelBudget(wanted.length);
-    if (allowed < wanted.length) {
-        logger.warn(`Label budget exhausted: emitting ${allowed} of ${wanted.length} for ${uri}`);
-    }
-    if (allowed === 0) {
+    if (wanted.length === 0) {
         return c.json([], 200);
     }
 
-    logger.debug(`Received label request for ${uri} with labels: ${wanted.slice(0, allowed).join(', ')}`);
+    // everything is stored so feeds and queryLabels keep the full tag set, but
+    // only a few per post are published: the appview budget is what actually
+    // limits how many labels exist at all
+    const allowed = Math.min(
+        MAX_LABELS_PER_POST - existing.size,
+        await reserveLabelBudget(Math.min(wanted.length, MAX_LABELS_PER_POST)),
+    );
+    const toPublish = wanted.slice(0, Math.max(0, allowed));
+    const storeOnly = wanted.slice(toPublish.length);
 
-    const labels = await labeler.applyLabels(
-        wanted.slice(0, allowed).map((label) => {
-            return {
-                uri,
-                cid: decryptedBody.reference.cid,
-                value: label,
-                issuedAt: new Date().toISOString(),
-            };
-        }),
+    const issuedAt = new Date().toISOString();
+    const labels = toPublish.length
+        ? await labeler.applyLabels(
+              toPublish.map((label) => ({ uri, cid: decryptedBody.reference.cid, value: label, issuedAt })),
+          )
+        : [];
+
+    if (storeOnly.length) {
+        const key = await signingKey;
+        const rows = await Promise.all(
+            storeOnly.map(async (val) => {
+                const unsigned = { cid: decryptedBody.reference.cid, cts: issuedAt, src: DID, uri, val, ver: 1 };
+                return { ...unsigned, sig: await key.sign(encode(unsigned)) };
+            }),
+        );
+        await labelerDb.saveLabels(rows as never);
+    }
+
+    logger.debug(
+        `Labeled ${uri}: published ${toPublish.length}, stored-only ${storeOnly.length} (${wanted.length} new)`,
     );
 
     return c.json(labels, 200);

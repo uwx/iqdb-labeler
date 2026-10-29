@@ -37,7 +37,14 @@ function createSqliteExecutor(db: DatabaseSync): IGenericSqlite<DatabaseSync> {
 
 export const createDb = (location: string): Database => {
     return new Kysely<DatabaseSchema>({
-        dialect: new GenericSqliteDialect(() => createSqliteExecutor(new DatabaseSync(location))),
+        dialect: new GenericSqliteDialect(() => {
+            // the server and the ingestion client share this file; WAL plus a
+            // busy timeout keeps them from failing each other's writes
+            const db = new DatabaseSync(location);
+            db.exec('PRAGMA journal_mode = WAL');
+            db.exec('PRAGMA busy_timeout = 10000');
+            return createSqliteExecutor(db);
+        }),
     });
 };
 

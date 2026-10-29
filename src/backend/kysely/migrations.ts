@@ -299,11 +299,8 @@ migrations['002'] = {
     },
 };
 
-// 002 recreates the indexes but production ended up without them (label lookups
-// were doing a 5M-row scan); create them if they are missing.
+// label lookups were scanning 5M rows because production had no indexes. built
+// out-of-band (CREATE INDEX on that table at startup would lock the shared db).
 migrations['003'] = {
-    async up(db: Kysely<unknown>) {
-        await db.schema.createIndex('labels_uri_idx').ifNotExists().on('labels').column('uri').execute();
-        await db.schema.createIndex('labels_val_idx').ifNotExists().on('labels').column('val').execute();
-    },
+    async up() {},
 };
