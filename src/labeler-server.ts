@@ -11,7 +11,7 @@ import { Hono } from 'hono';
 import { cors } from '@atcute/xrpc-server/middlewares/cors';
 import { ComAtprotoLabelDefs, ComAtprotoLabelQueryLabels, ComAtprotoLabelSubscribeLabels, ComAtprotoRepoStrongRef } from '@atcute/atproto';
 import { SqliteDbProvider } from './utils/nodesqlite-db-provider.ts';
-import { P256PrivateKey } from '@atcute/crypto';
+import { Secp256k1PrivateKey } from '@atcute/crypto';
 import { FutureCursorError,
 Labeler } from './labeler/index.ts';
 import { DbLabelStore } from './utils/db-label-store.ts';
@@ -27,7 +27,7 @@ const labelerDb = new SqliteDbProvider(DB_PATH);
 
 const labeler = new Labeler({
 	serviceDid: DID,
-	signingKey: await P256PrivateKey.importRaw(ui8FromString(SIGNING_KEY, 'hex')),
+	signingKey: await Secp256k1PrivateKey.importRaw(ui8FromString(SIGNING_KEY, 'hex')),
 	store: new DbLabelStore(labelerDb),
 });
 

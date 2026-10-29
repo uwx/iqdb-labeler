@@ -31,7 +31,8 @@ export class DbLabelStore implements LabelStore {
                 cid: label.cid ?? undefined,
                 exp: label.exp ?? undefined,
                 neg: label.neg ?? undefined,
-                ver: label.ver != null ? Number(label.ver) : undefined,
+                // no ver column: signatures cover ver: 1, so it must be restored on rebuild
+                ver: 1,
                 sig: label.sig instanceof Uint8Array ? {
                     $bytes: Buffer.from(label.sig).toString('base64'),
                 } satisfies Bytes : label.sig
