@@ -1,6 +1,7 @@
 import { Bytes, Did } from '@atcute/lexicons';
 import type { SavedLabel, SignedLabel, DbProvider as SkywareDbProvider } from './db-provider.js';
 import { createDb, Database } from '../backend/kysely/index.js';
+import { sql } from 'kysely';
 
 function toArray(buf: Uint8Array | Bytes): Uint8Array {
     if (buf instanceof Uint8Array) return buf;
@@ -15,14 +16,22 @@ export class SqliteDbProvider implements SkywareDbProvider {
     }
 
     async queryLabels(identifier: string, cursor = 0, limit = 1): Promise<SavedLabel[]> {
-        const result = await this.db
-            .selectFrom('labels')
-            .selectAll()
-            .where('val', '=', identifier)
-            .where('id', '>', BigInt(cursor))
-            .orderBy('id', 'asc')
-            .limit(limit)
-            .execute();
+        // newest first, one row per post: the same label value gets applied to a
+        // post repeatedly, and a feed that repeats the same post 300 times is useless.
+        // cursor is the id of the last post emitted, so we page backwards from it.
+        const cursorId = cursor > 0 ? BigInt(cursor) : BigInt(Number.MAX_SAFE_INTEGER);
+
+        // distinctOn is postgres-only; sqlite needs the window function form
+        const result = await sql<SavedLabel>`
+            SELECT * FROM (
+                SELECT *, ROW_NUMBER() OVER (PARTITION BY uri ORDER BY id DESC) AS rn
+                FROM labels
+                WHERE val = ${identifier} AND id < ${Number(cursorId)}
+            )
+            WHERE rn = 1
+            ORDER BY id DESC
+            LIMIT ${limit}
+        `.execute(this.db).then((r) => r.rows);
 
         return result.map((row) => ({
             ...row,

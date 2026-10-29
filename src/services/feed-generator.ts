@@ -99,9 +99,10 @@ export default function (router: XRPCRouter, labelerDb: DbProvider) {
                     (e) => ({ post: e.uri as ResourceUri }) satisfies AppBskyFeedDefs.SkeletonFeedPost,
                 ),
 
-                // id is a BigInt column; Math.max throws "Cannot convert a BigInt value to a number"
+                // paging is newest-first, so the next page starts below the lowest id
+                // on this one. id is a BigInt column; Math.min throws on BigInt.
                 ...(queryResult.length > 0
-                    ? { cursor: String(queryResult.reduce((a, e) => (e.id > a ? e.id : a), queryResult[0].id)) }
+                    ? { cursor: String(queryResult.reduce((a, e) => (e.id < a ? e.id : a), queryResult[0].id)) }
                     : {}),
             });
         },
