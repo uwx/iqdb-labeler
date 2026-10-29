@@ -31,7 +31,9 @@ export class DbLabelStore implements LabelStore {
                     uri: label.uri as ResourceUri,
                     cid: label.cid ?? undefined,
                     exp: label.exp ?? undefined,
-                    neg: label.neg ?? undefined,
+                    // signatures cover the CBOR without neg when it is false, so emitting
+                    // neg: false changes the bytes and the appview rejects the label
+                    neg: label.neg ? true : undefined,
                     // no ver column: signatures cover ver: 1, so it must be restored on rebuild
                     ver: 1,
                     sig:
