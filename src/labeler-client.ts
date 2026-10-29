@@ -1,4 +1,4 @@
-import { JetstreamSubscription } from '@atcute/jetstream';
+import { JetstreamSubscription, type JetstreamEvent } from '@atcute/jetstream';
 import fs from 'node:fs';
 import type { BlueMicrocosmLinksGetBacklinks } from './lexicons/index.js';
 
@@ -59,6 +59,21 @@ if (process.argv.includes('--start-early')) {
     let date = new Date();
     date.setDate(date.getDate() - 1);
     cursor = Math.floor(date.getTime() * 1000);
+}
+
+// Replaying a large backlog through image inference cannot keep up with the
+// firehose and the iterator queue grows until the heap dies (and every restart
+// throws the progress away), so clamp how far back we'll replay. Default 10m.
+{
+    const maxBacklogMinutes = Number(process.env.MAX_BACKLOG_MINUTES ?? 10);
+    const earliest = Math.floor((Date.now() - maxBacklogMinutes * 60_000) * 1000);
+    if (cursor < earliest) {
+        logger.info(
+            `Cursor ${epochUsToDateTime(cursor)} is more than ${maxBacklogMinutes}m behind; skipping to ${epochUsToDateTime(earliest)}`,
+        );
+        cursor = earliest;
+        await setDbConfigItem('jetstreamCursor', cursor);
+    }
 }
 
 let labelAnything = false;
@@ -159,138 +174,155 @@ cursorUpdateInterval = setInterval(() => {
         setDbConfigItem('jetstreamCursor', jetstream.cursor);
 
         const delay = Date.now() * 1000 - jetstream.cursor;
-        logger.info(`Current delay: ${(delay / 1000).toFixed(2)} seconds`);
+        logger.info(`Current delay: ${(delay / 1e6).toFixed(2)} seconds`);
     }
 }, CURSOR_UPDATE_INTERVAL);
 
+
 let stopped = false;
+
+// The jetstream iterator queues events without bound, so a slow serial consumer
+// (each post costs an image fetch + inference) lets the queue grow until the
+// heap dies. Process with bounded concurrency so the iterator stays drained.
+const concurrency = Math.max(1, Number(process.env.LABELER_CONCURRENCY) || 16);
+const inFlight = new Set<Promise<void>>();
+
+const handleEvent = async (event: JetstreamEvent): Promise<void> => {
+    if (event.kind !== 'commit') {
+        return;
+    }
+
+    const did = event.did;
+    const commit = event.commit;
+    const rkey = commit.rkey;
+
+    if (commit.operation === 'create') {
+        const cid = commit.cid;
+        const record = commit.record;
+
+        if (commit.collection === 'app.bsky.graph.follow') {
+            const subject = (record as AppBskyGraphFollow.Main)?.subject;
+
+            if (subject === DID) {
+                logger.debug(`Followed by ${did}`);
+                await db
+                    .insertInto('followers')
+                    .values({ did, rkey })
+                    .onConflict((oc) => oc.column('did').doUpdateSet({ rkey }))
+                    .execute()
+                    .catch((error: unknown) => {
+                        logger.error(`Unexpected error inserting follower ${did}: ${error}`);
+                    });
+            }
+        }
+
+        if (commit.collection === 'app.bsky.feed.like') {
+            const uri = (record as AppBskyFeedLike.Main)?.subject?.uri;
+
+            if (uri) {
+                if (uri == `at://${DID}/app.bsky.labeler.service/self`) {
+                    logger.debug(`Liked by ${did}`);
+
+                    await db
+                        .insertInto('likers')
+                        .values({ did, rkey })
+                        .onConflict((oc) => oc.column('did').doUpdateSet({ rkey }))
+                        .execute()
+                        .catch((error: unknown) => {
+                            logger.error(`Unexpected error inserting liker ${did}: ${error}`);
+                        });
+                }
+
+                await db
+                    .selectFrom('followers')
+                    .selectAll()
+                    .unionAll((eb) => eb.selectFrom('likers').selectAll())
+                    .where('did', '=', did)
+                    .executeTakeFirst()
+                    .then(async (result) => {
+                        if (result) {
+                            await labelPost(uri).catch((error: unknown) => {
+                                logger.error(error, `Unexpected error labeling ${uri}: ${error}`);
+                            });
+                        }
+                    });
+            } else {
+                logger.warn(record, `Like record missing subject.uri`);
+            }
+        }
+
+        if (commit.collection === 'app.bsky.feed.post') {
+            const uri = `at://${did}/app.bsky.feed.post/${rkey}`;
+
+            await db
+                .selectFrom('followers')
+                .selectAll()
+                .unionAll((eb) => eb.selectFrom('likers').selectAll())
+                .where('did', '=', did)
+                .executeTakeFirst()
+                .then(async (result) => {
+                    if (result || labelAnything) {
+                        await labelPost({
+                            ...(record as AppBskyFeedPost.Main),
+                            uri,
+                            cid,
+                        }).catch((error: unknown) => {
+                            logger.error(error, `Unexpected error labeling ${uri}: ${error}`);
+                        });
+                    }
+                });
+        }
+    } else if (commit.operation === 'delete') {
+        if (commit.collection === 'app.bsky.graph.follow') {
+            await db
+                .deleteFrom('followers')
+                .where('rkey', '=', rkey)
+                .execute()
+                .then((result) => {
+                    if (result[0].numDeletedRows > 0) {
+                        logger.debug(`Unfollowed by ${did}`);
+                    }
+                })
+                .catch((error: unknown) => {
+                    logger.error(`Unexpected error deleting follower ${did}: ${error}`);
+                });
+        }
+
+        if (commit.collection === 'app.bsky.feed.like') {
+            await db
+                .deleteFrom('likers')
+                .where('rkey', '=', rkey)
+                .execute()
+                .then((result) => {
+                    if (result[0].numDeletedRows > 0) {
+                        logger.debug(`Un-liked by ${did}`);
+                    }
+                })
+                .catch((error: unknown) => {
+                    logger.error(`Unexpected error deleting liker ${did}: ${error}`);
+                });
+        }
+    }
+};
 
 for await (const event of jetstream) {
     if (stopped) {
         break;
     }
 
-    try {
-        if (event.kind === 'commit') {
-            const did = event.did;
-            const commit = event.commit;
-            const rkey = commit.rkey;
-
-            if (commit.operation === 'create') {
-                const cid = commit.cid;
-                const record = commit.record;
-
-                if (commit.collection === 'app.bsky.graph.follow') {
-                    const subject = (record as AppBskyGraphFollow.Main)?.subject;
-
-                    // const uri = `at://${did}/app.bsky.graph.follow/${rkey}`;
-                    if (subject === DID) {
-                        logger.debug(`Followed by ${did}`);
-                        await db
-                            .insertInto('followers')
-                            .values({ did, rkey })
-                            .onConflict((oc) => oc.column('did').doUpdateSet({ rkey }))
-                            .execute()
-                            .catch((error: unknown) => {
-                                logger.error(`Unexpected error inserting follower ${did}: ${error}`);
-                            });
-
-                        // this.emit("follow", { user: await bot.getProfile(did), uri });
-                    }
-                }
-
-                if (commit.collection === 'app.bsky.feed.like') {
-                    const uri = (record as AppBskyFeedLike.Main)?.subject?.uri;
-
-                    if (uri) {
-                        if (uri == `at://${DID}/app.bsky.labeler.service/self`) {
-                            logger.debug(`Liked by ${did}`);
-
-                            await db
-                                .insertInto('likers')
-                                .values({ did, rkey })
-                                .onConflict((oc) => oc.column('did').doUpdateSet({ rkey }))
-                                .execute()
-                                .catch((error: unknown) => {
-                                    logger.error(`Unexpected error inserting liker ${did}: ${error}`);
-                                });
-                        }
-
-                        await db
-                            .selectFrom('followers')
-                            .selectAll()
-                            .unionAll((eb) => eb.selectFrom('likers').selectAll())
-                            .where('did', '=', did)
-                            .executeTakeFirst()
-                            .then(async (result) => {
-                                if (result) {
-                                    await labelPost(uri).catch((error: unknown) => {
-                                        logger.error(error, `Unexpected error labeling ${uri}: ${error}`);
-                                    });
-                                }
-                            });
-                    } else {
-                        logger.warn(record, `Like record missing subject.uri`);
-                    }
-                }
-
-                if (commit.collection === 'app.bsky.feed.post') {
-                    const uri = `at://${did}/app.bsky.feed.post/${rkey}`;
-
-                    await db
-                        .selectFrom('followers')
-                        .selectAll()
-                        .unionAll((eb) => eb.selectFrom('likers').selectAll())
-                        .where('did', '=', did)
-                        .executeTakeFirst()
-                        .then(async (result) => {
-                            if (result || labelAnything) {
-                                await labelPost({
-                                    ...(record as AppBskyFeedPost.Main),
-                                    uri,
-                                    cid,
-                                }).catch((error: unknown) => {
-                                    logger.error(error, `Unexpected error labeling ${uri}: ${error}`);
-                                });
-                            }
-                        });
-                }
-            } else if (commit.operation === 'delete') {
-                if (commit.collection === 'app.bsky.graph.follow') {
-                    await db
-                        .deleteFrom('followers')
-                        .where('rkey', '=', rkey)
-                        .execute()
-                        .then((result) => {
-                            if (result[0].numDeletedRows > 0) {
-                                logger.debug(`Unfollowed by ${did}`);
-                            }
-                        })
-                        .catch((error: unknown) => {
-                            logger.error(`Unexpected error deleting follower ${did}: ${error}`);
-                        });
-                }
-
-                if (commit.collection === 'app.bsky.feed.like') {
-                    await db
-                        .deleteFrom('likers')
-                        .where('rkey', '=', rkey)
-                        .execute()
-                        .then((result) => {
-                            if (result[0].numDeletedRows > 0) {
-                                logger.debug(`Un-liked by ${did}`);
-                            }
-                        })
-                        .catch((error: unknown) => {
-                            logger.error(`Unexpected error deleting liker ${did}: ${error}`);
-                        });
-                }
-            }
-        }
-    } catch (error) {
-        logger.error(error, `Unexpected error processing event: ${error}`);
+    while (inFlight.size >= concurrency) {
+        await Promise.race(inFlight);
     }
+
+    const task: Promise<void> = handleEvent(event)
+        .catch((error: unknown) => {
+            logger.error(error, `Unexpected error processing event: ${error}`);
+        })
+        .finally(() => inFlight.delete(task));
+    inFlight.add(task);
 }
+
+await Promise.allSettled(inFlight);
 
 function shutdown() {
     try {
