@@ -4,6 +4,7 @@ import { DB_PATH } from '../config.js';
 
 type ConfigItems = {
     jetstreamCursor: number;
+    labelBudget: { day: string; count: number };
 };
 
 const db = createDb(DB_PATH);

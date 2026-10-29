@@ -18,6 +18,7 @@ import { SqliteDbProvider } from './utils/nodesqlite-db-provider.ts';
 import { Secp256k1PrivateKey } from '@atcute/crypto';
 import { FutureCursorError, Labeler } from '@atcute/labeler';
 import { DbLabelStore } from './utils/db-label-store.ts';
+import { reserveLabelBudget } from './utils/label-budget.ts';
 import { fromString as ui8FromString } from 'uint8arrays/from-string';
 import { createDb, migrateToLatest } from './backend/kysely/index.ts';
 import * as http from 'node:http';
@@ -46,8 +47,11 @@ const router = new XRPCRouter({
 
 router.addSubscription(ComAtprotoLabelSubscribeLabels, {
     async *handler({ params, signal }) {
+        // no backfill: the appview caps ingestion at 5/s, 5k/hour, 50k/day, so
+        // replaying the multi-million-row history only burns the budget and gets
+        // dropped. new subscribers start from live.
         try {
-            for await (const label of labeler.subscribeLabels({ cursor: params.cursor, signal })) {
+            for await (const label of labeler.subscribeLabels({ signal })) {
                 logger.debug(label, 'Emitting label event');
 
                 yield {
@@ -136,14 +140,29 @@ labelerServer.post('/label', async (c) => {
         return c.text('No URI', 400);
     }
 
-    logger.debug(
-        `Received label request for ${decryptedBody.reference.uri} with labels: ${decryptedBody.labels.join(', ')}`,
+    const uri = decryptedBody.reference.uri;
+
+    // the same post gets relabeled constantly; re-applying a value it already
+    // has spends the appview's ingest budget for nothing
+    const existing = new Set(
+        (await labelerDb.searchLabels(undefined, 1000, [uri])).map((label) => label.val),
     );
+    const wanted = [...new Set(decryptedBody.labels)].filter((val) => !existing.has(val));
+
+    const allowed = await reserveLabelBudget(wanted.length);
+    if (allowed < wanted.length) {
+        logger.warn(`Label budget exhausted: emitting ${allowed} of ${wanted.length} for ${uri}`);
+    }
+    if (allowed === 0) {
+        return c.json([], 200);
+    }
+
+    logger.debug(`Received label request for ${uri} with labels: ${wanted.slice(0, allowed).join(', ')}`);
 
     const labels = await labeler.applyLabels(
-        decryptedBody.labels.map((label) => {
+        wanted.slice(0, allowed).map((label) => {
             return {
-                uri: decryptedBody.reference.uri,
+                uri,
                 cid: decryptedBody.reference.cid,
                 value: label,
                 issuedAt: new Date().toISOString(),

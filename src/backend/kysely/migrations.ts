@@ -298,3 +298,12 @@ migrations['002'] = {
         await db.schema.createIndex('labels_cid_idx').on('labels').column('cid').execute();
     },
 };
+
+// 002 recreates the indexes but production ended up without them (label lookups
+// were doing a 5M-row scan); create them if they are missing.
+migrations['003'] = {
+    async up(db: Kysely<unknown>) {
+        await db.schema.createIndex('labels_uri_idx').ifNotExists().on('labels').column('uri').execute();
+        await db.schema.createIndex('labels_val_idx').ifNotExists().on('labels').column('val').execute();
+    },
+};
