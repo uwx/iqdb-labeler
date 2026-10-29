@@ -1,4 +1,4 @@
-import { BSKY_IDENTIFIER, BSKY_PASSWORD,PDS } from '../config.js';
+import { BSKY_IDENTIFIER, BSKY_PASSWORD, PDS } from '../config.js';
 import { getLabelValueDefinitions, injectDanbooruTags } from '../labels/index.js';
 import logger from '../backend/logger.js';
 import { arrayFromAsync } from '../utils.js';
@@ -8,7 +8,7 @@ import { setLabelerLabelDefinitions } from './util/declareLabeler.js';
 const loginCredentials: LoginCredentials = {
     pds: PDS,
     identifier: BSKY_IDENTIFIER,
-    password: BSKY_PASSWORD
+    password: BSKY_PASSWORD,
 };
 
 if (process.argv.slice(2).includes('--inject-danbooru-tags')) {
@@ -27,7 +27,8 @@ if (process.argv.slice(2).includes('--set-label-definitions')) {
             loginCredentials,
             (await arrayFromAsync(getLabelValueDefinitions()))
                 .slice(0, 550)
-                .sort((a, b) => a.locales[0].name.localeCompare(b.locales[0].name)));
+                .sort((a, b) => a.locales[0].name.localeCompare(b.locales[0].name)),
+        );
         console.timeEnd('setLabelerLabelDefinitions');
         logger.info('Label definitions set successfully.');
     } catch (error) {

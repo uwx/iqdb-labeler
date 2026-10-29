@@ -1,5 +1,6 @@
-import { createDb } from "../backend/kysely/index.js";import logger from "../backend/logger.js";
-import { DB_PATH } from "../config.js";
+import { createDb } from '../backend/kysely/index.js';
+import logger from '../backend/logger.js';
+import { DB_PATH } from '../config.js';
 
 export const enum Rating {
     General = 'g',
@@ -33,32 +34,39 @@ export abstract class Matcher {
         const results = await db
             .selectFrom('tags')
             .select('id')
-            .where((eb) => eb.or([
-                eb('name', 'in', names),
-                eb('name', 'in',
-                    eb.selectFrom('tagAliases')
-                        .select('consequentName')
-                        .where('antecedentName', 'in', names)
-                )
-            ]))
+            .where((eb) =>
+                eb.or([
+                    eb('name', 'in', names),
+                    eb(
+                        'name',
+                        'in',
+                        eb.selectFrom('tagAliases').select('consequentName').where('antecedentName', 'in', names),
+                    ),
+                ]),
+            )
             .execute();
 
-        return results.map(r => r.id);
+        return results.map((r) => r.id);
     }
 
     async getTagIdByNameOrAlias(name: string): Promise<bigint | undefined> {
         const result = await db
             .selectFrom('tags')
             .select('id')
-            .where((eb) => eb.or([
-                eb('name', '=', name),
-                eb('name', '=', 
-                    eb.selectFrom('tagAliases')
-                        .select('consequentName')
-                        .where('antecedentName', '=', name)
-                        .limit(1)
-                )
-            ]))
+            .where((eb) =>
+                eb.or([
+                    eb('name', '=', name),
+                    eb(
+                        'name',
+                        '=',
+                        eb
+                            .selectFrom('tagAliases')
+                            .select('consequentName')
+                            .where('antecedentName', '=', name)
+                            .limit(1),
+                    ),
+                ]),
+            )
             .executeTakeFirst();
 
         return result?.id;
@@ -68,7 +76,7 @@ export abstract class Matcher {
         try {
             return await this.getMatchImpl(imageUrl);
         } catch (err) {
-            return {error: err as Error};
+            return { error: err as Error };
         }
     }
     abstract getMatchImpl(imageUrl: string): Match | MatchError | PromiseLike<Match | MatchError | void> | void;

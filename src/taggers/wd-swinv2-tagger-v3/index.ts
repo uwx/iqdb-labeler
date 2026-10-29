@@ -47,7 +47,7 @@ async function preprocessImage(imagePath: string | Buffer) {
  * @returns The session.
  */
 async function modelLoad(modelDir = './models') {
-    const onnxPath = path.join(modelDir, "model.onnx");
+    const onnxPath = path.join(modelDir, 'model.onnx');
 
     return await onnx.InferenceSession.create(onnxPath, {
         executionMode: 'parallel',
@@ -61,17 +61,19 @@ async function modelLoad(modelDir = './models') {
  * @returns The tags in model output order.
  */
 async function parseCsv(data: string) {
-    return new Promise<{
-        tag_id: string,
-        name: string,
-        category: string,
-        count: string,
-    }[]>((resolve, reject) => {
+    return new Promise<
+        {
+            tag_id: string;
+            name: string;
+            category: string;
+            count: string;
+        }[]
+    >((resolve, reject) => {
         const results: {
-            tag_id: string,
-            name: string,
-            category: string,
-            count: string,
+            tag_id: string;
+            name: string;
+            category: string;
+            count: string;
         }[] = [];
 
         Readable.from(data)
@@ -83,8 +85,8 @@ async function parseCsv(data: string) {
 }
 const rows = await parseCsv(selectedTags);
 
-const generalTags = rows.filter(row => row.category === "0").map(row => row.name);
-const characterTags = rows.filter(row => row.category === "4").map(row => row.name);
+const generalTags = rows.filter((row) => row.category === '0').map((row) => row.name);
+const characterTags = rows.filter((row) => row.category === '4').map((row) => row.name);
 
 const session = await modelLoad('./models');
 const inputName = session.inputNames[0];
@@ -92,7 +94,9 @@ const inputName = session.inputNames[0];
 async function analyze(buffer: ArrayBuffer | Buffer | string) {
     const startTime = Date.now();
 
-    const imagePreprocessed = await preprocessImage(Buffer.isBuffer(buffer) ? buffer : typeof buffer === 'string' ? buffer : Buffer.from(buffer));
+    const imagePreprocessed = await preprocessImage(
+        Buffer.isBuffer(buffer) ? buffer : typeof buffer === 'string' ? buffer : Buffer.from(buffer),
+    );
 
     const results = await session.run({ [inputName]: imagePreprocessed });
 
@@ -117,7 +121,7 @@ async function analyze(buffer: ArrayBuffer | Buffer | string) {
             ratings[i] = p;
             continue;
         }
-        
+
         if (i - 4 < generalTags.length && p >= generalThreshold) {
             tagName = generalTags[i - 4];
         } else if (i - 4 >= generalTags.length && p >= characterThreshold) {
@@ -139,7 +143,8 @@ async function analyze(buffer: ArrayBuffer | Buffer | string) {
         rating = ['q', ratings[2]];
     } else if (ratings[3] >= ratings[0] && ratings[3] >= ratings[1] && ratings[3] >= ratings[2]) {
         rating = ['e', ratings[3]];
-    } else { // all ratings are equal, go for explicit as a fallback
+    } else {
+        // all ratings are equal, go for explicit as a fallback
         rating = ['e', ratings[3]];
     }
 
@@ -149,16 +154,14 @@ async function analyze(buffer: ArrayBuffer | Buffer | string) {
 export class WdMatcher extends Matcher {
     async getMatchImpl(imageUrl: string) {
         const startTime = Date.now();
-        const buffer = await fetch(imageUrl).then(e => e.blob());
+        const buffer = await fetch(imageUrl).then((e) => e.blob());
         const endTime = Date.now();
 
         logger.debug(`Image fetch time: ${endTime - startTime} ms`);
 
         const analyzed = await analyze(await buffer.arrayBuffer());
 
-        const tags: bigint[] = await this.getTagIdsByNameOrAlias(
-            analyzed.tags.map(([tag, p]) => tag)
-        );
+        const tags: bigint[] = await this.getTagIdsByNameOrAlias(analyzed.tags.map(([tag, p]) => tag));
 
         if (tags.length > 0) {
             return { similarity: Math.max(...analyzed.tags.map(([tag, p]) => p)), tags } satisfies Match;

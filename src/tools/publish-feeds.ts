@@ -1,20 +1,20 @@
-import { ComAtprotoRepoApplyWrites, ComAtprotoRepoCreateRecord } from "@atcute/atproto";
+import { ComAtprotoRepoApplyWrites, ComAtprotoRepoCreateRecord } from '@atcute/atproto';
 import { AppBskyFeedGenerator } from '@atcute/bluesky';
-import { BSKY_IDENTIFIER, BSKY_PASSWORD, DID, FEEDS_DOMAIN } from "../config.js";
-import logger from "../backend/logger.js";
-import { labelDefinitions } from "../utils/label-definitions.js";
-import { getFeedRkeyFromLabelIdentifier } from "../utils/feed-helpers.js";
-import { loginAgent } from "./util/index.js";
-import { Cid, Did, ResourceUri } from "@atcute/lexicons";
+import { BSKY_IDENTIFIER, BSKY_PASSWORD, DID, FEEDS_DOMAIN } from '../config.js';
+import logger from '../backend/logger.js';
+import { labelDefinitions } from '../utils/label-definitions.js';
+import { getFeedRkeyFromLabelIdentifier } from '../utils/feed-helpers.js';
+import { loginAgent } from './util/index.js';
+import { Cid, Did, ResourceUri } from '@atcute/lexicons';
 import * as v from '@atcute/lexicons/validations';
-import { AtUri } from "@atproto/syntax";
-import { Records } from "@atcute/lexicons/ambient";
-import RichText from "@atcute/bluesky-richtext-builder";
+import { AtUri } from '@atproto/syntax';
+import { Records } from '@atcute/lexicons/ambient';
+import RichText from '@atcute/bluesky-richtext-builder';
 
 async function publishFeeds() {
-	const { agent, session } = await loginAgent({
+    const { agent, session } = await loginAgent({
         identifier: BSKY_IDENTIFIER,
-        password: BSKY_PASSWORD
+        password: BSKY_PASSWORD,
     });
 
     const feeds: {
@@ -39,17 +39,19 @@ async function publishFeeds() {
             reverse: true,
         });
 
-        feeds.push(...result.records.map(e => ({
-            ...e as {
-                cid: Cid;
-                uri: AtUri;
-                value: AppBskyFeedGenerator.Main;
-            },
-            rkey: e.uri.rkey,
-        })));
+        feeds.push(
+            ...result.records.map((e) => ({
+                ...(e as {
+                    cid: Cid;
+                    uri: AtUri;
+                    value: AppBskyFeedGenerator.Main;
+                }),
+                rkey: e.uri.rkey,
+            })),
+        );
     }
 
-    const feedsByRkey = Object.fromEntries(feeds.map(feed => [feed.rkey, feed.value]))
+    const feedsByRkey = Object.fromEntries(feeds.map((feed) => [feed.rkey, feed.value]));
 
     logger.info(feeds.length, 'feeds.length');
 
@@ -66,12 +68,15 @@ async function publishFeeds() {
             .build();
 
         (labelIdentifier in feedsByRkey ? updates : creates).push({
-            $type: labelIdentifier in feedsByRkey ? 'com.atproto.repo.applyWrites#update' : 'com.atproto.repo.applyWrites#create',
+            $type:
+                labelIdentifier in feedsByRkey
+                    ? 'com.atproto.repo.applyWrites#update'
+                    : 'com.atproto.repo.applyWrites#create',
 
-            collection: "app.bsky.feed.generator",
+            collection: 'app.bsky.feed.generator',
             rkey: labelIdentifier,
             value: {
-                $type: "app.bsky.feed.generator",
+                $type: 'app.bsky.feed.generator',
 
                 did: `did:web:${FEEDS_DOMAIN}`,
                 displayName: truncate(`Tag: ${labelDefinitions[labelIdentifier].locales[0].name}`, 24),
@@ -80,9 +85,11 @@ async function publishFeeds() {
 
                 labels: {
                     $type: 'com.atproto.label.defs#selfLabels',
-                    values: [{
-                        val: labelIdentifier,
-                    }]
+                    values: [
+                        {
+                            val: labelIdentifier,
+                        },
+                    ],
                 },
 
                 createdAt: feedsByRkey[labelIdentifier]?.createdAt ?? new Date().toISOString(),
@@ -90,12 +97,14 @@ async function publishFeeds() {
         });
     }
 
-    const feedsToRemove = feeds.filter(e => !creates.find(e1 => e1.rkey == e.rkey) && !updates.find(e1 => e1.rkey == e.rkey));
+    const feedsToRemove = feeds.filter(
+        (e) => !creates.find((e1) => e1.rkey == e.rkey) && !updates.find((e1) => e1.rkey == e.rkey),
+    );
     for (const feed of feedsToRemove) {
         deletes.push({
             $type: 'com.atproto.repo.applyWrites#delete',
 
-            collection: "app.bsky.feed.generator",
+            collection: 'app.bsky.feed.generator',
             rkey: feed.rkey,
         });
     }
@@ -131,7 +140,7 @@ async function publishFeeds() {
     }
 }
 
-function *chunks<T>(arr: T[], chunkSize = 10): Generator<T[]> {
+function* chunks<T>(arr: T[], chunkSize = 10): Generator<T[]> {
     for (let i = 0; i < arr.length; i += chunkSize) {
         yield arr.slice(i, i + chunkSize);
     }

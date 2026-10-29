@@ -1,4 +1,4 @@
-import { Bytes, Cid, Did } from "@atcute/lexicons";
+import { Bytes, Cid, Did } from '@atcute/lexicons';
 
 export type UnsignedLabel = {
     /** Timestamp when this label was created. */
@@ -23,12 +23,17 @@ export type UnsignedLabel = {
 };
 export type SignedLabel = UnsignedLabel & { sig: Uint8Array | Bytes };
 export type FormattedLabel = UnsignedLabel & { sig?: Bytes };
-export type SavedLabel = SignedLabel & { id: bigint, ver?: bigint | null };
+export type SavedLabel = SignedLabel & { id: bigint; ver?: bigint | null };
 export interface DbProvider {
     queryLabels(identifier: string, cursor?: number, limit?: number): Promise<SavedLabel[]> | SavedLabel[];
     saveLabel(label: SignedLabel): bigint | Promise<bigint>;
     saveLabels(labels: SignedLabel[]): bigint[] | Promise<bigint[]>;
-    searchLabels(cursor?: number, limit?: number, uriPatterns?: string[], sources?: string[]): Promise<SavedLabel[]> | SavedLabel[];
+    searchLabels(
+        cursor?: number,
+        limit?: number,
+        uriPatterns?: string[],
+        sources?: string[],
+    ): Promise<SavedLabel[]> | SavedLabel[];
 
     isCursorInTheFuture(cursor: number): boolean | Promise<boolean>;
     getLatestCursor(): bigint | null | Promise<bigint | null>;

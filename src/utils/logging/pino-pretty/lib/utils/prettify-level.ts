@@ -2,10 +2,10 @@ import getPropertyValue from './get-property-value';
 import type { PrettyContext } from './parse-factory-options';
 
 interface PrettifyLevelParams {
-  /** The log object. */
-  log: any; // Or a more specific type if the structure of log objects is known
-  /** The context object built from parsing the options. */
-  context: PrettyContext;
+    /** The log object. */
+    log: any; // Or a more specific type if the structure of log objects is known
+    /** The context object built from parsing the options. */
+    context: PrettyContext;
 }
 
 /**

@@ -2,11 +2,11 @@ import { createReadStream } from 'node:fs';
 import readline from 'node:readline/promises';
 import { BQTag, BQTagAlias, BQTagImplication, BQWikiPage } from '../tools/danbooru-query.js';
 import logger from '../backend/logger.js';
-import { alphabetToString, alphabetParseInt  } from '../utils/ints.js';
+import { alphabetToString, alphabetParseInt } from '../utils/ints.js';
 import { ComAtprotoLabelDefs } from '@atcute/atproto';
-import { createDb,migrateToLatest } from '../backend/kysely/index.js';
+import { createDb, migrateToLatest } from '../backend/kysely/index.js';
 import { DB_PATH } from '../config.js';
-import { TagCategory,TagsTable } from '../backend/kysely/schema.js';
+import { TagCategory, TagsTable } from '../backend/kysely/schema.js';
 import { sql } from 'kysely';
 
 async function* readJsonLines<T>(path: string) {
@@ -14,7 +14,7 @@ async function* readJsonLines<T>(path: string) {
 
     const rl = readline.createInterface({
         input: fileStream,
-        crlfDelay: Infinity
+        crlfDelay: Infinity,
     });
 
     for await (const line of rl) {
@@ -33,15 +33,15 @@ export async function injectDanbooruTags() {
     logger.info('clearing tags db');
 
     // clear tables
-    await db.transaction().execute(async trx => {
+    await db.transaction().execute(async (trx) => {
         await trx.deleteFrom('tags').execute();
         await trx.deleteFrom('tagAliases').execute();
         await trx.deleteFrom('wikiPages').execute();
         await trx.deleteFrom('tagImplications').execute();
     });
-    
+
     logger.info('injecting tags');
-    await db.transaction().execute(async trx => {
+    await db.transaction().execute(async (trx) => {
         for await (const tag of readJsonLines<BQTag>('./danbooru-data/tags.jsonl')) {
             await trx
                 .insertInto('tags')
@@ -61,7 +61,7 @@ export async function injectDanbooruTags() {
     });
 
     logger.info('injecting tag_aliases');
-    await db.transaction().execute(async trx => {
+    await db.transaction().execute(async (trx) => {
         for await (const tagAlias of readJsonLines<BQTagAlias>('./danbooru-data/tag_aliases.jsonl')) {
             // console.log('tagAlias', tagAlias.id);
 
@@ -73,8 +73,12 @@ export async function injectDanbooruTags() {
                     forumTopicId: tagAlias.forum_topic_id,
                     approverId: tagAlias.approver_id,
                     creatorId: tagAlias.creator_id,
-                    updatedAt: tagAlias.updated_at?.value ? new Date(tagAlias.updated_at.value).toISOString() : undefined,
-                    createdAt: tagAlias.created_at?.value ? new Date(tagAlias.created_at.value).toISOString() : undefined,
+                    updatedAt: tagAlias.updated_at?.value
+                        ? new Date(tagAlias.updated_at.value).toISOString()
+                        : undefined,
+                    createdAt: tagAlias.created_at?.value
+                        ? new Date(tagAlias.created_at.value).toISOString()
+                        : undefined,
                     status: tagAlias.status,
                     reason: tagAlias.reason,
                     antecedentName: tagAlias.antecedent_name,
@@ -86,7 +90,7 @@ export async function injectDanbooruTags() {
     });
 
     logger.info('injecting tag_implications');
-    await db.transaction().execute(async trx => {
+    await db.transaction().execute(async (trx) => {
         for await (const tagImplication of readJsonLines<BQTagImplication>('./danbooru-data/tag_implications.jsonl')) {
             // console.log('tagImplication', tagImplication.id);
 
@@ -98,8 +102,12 @@ export async function injectDanbooruTags() {
                     forumTopicId: tagImplication.forum_topic_id,
                     approverId: tagImplication.approver_id,
                     creatorId: tagImplication.creator_id,
-                    updatedAt: tagImplication.updated_at?.value ? new Date(tagImplication.updated_at.value).toISOString() : undefined,
-                    createdAt: tagImplication.created_at?.value ? new Date(tagImplication.created_at.value).toISOString() : undefined,
+                    updatedAt: tagImplication.updated_at?.value
+                        ? new Date(tagImplication.updated_at.value).toISOString()
+                        : undefined,
+                    createdAt: tagImplication.created_at?.value
+                        ? new Date(tagImplication.created_at.value).toISOString()
+                        : undefined,
                     status: tagImplication.status,
                     reason: tagImplication.reason,
                     antecedentName: tagImplication.antecedent_name,
@@ -111,7 +119,7 @@ export async function injectDanbooruTags() {
     });
 
     logger.info('injecting wiki_pages');
-    await db.transaction().execute(async trx => {
+    await db.transaction().execute(async (trx) => {
         for await (const wikiPage of readJsonLines<BQWikiPage>('./danbooru-data/wiki_pages.jsonl')) {
             // console.log('wikiPage', wikiPage.id);
 
@@ -124,8 +132,12 @@ export async function injectDanbooruTags() {
                     otherNames: JSON.stringify(wikiPage.other_names ?? []),
                     isDeleted: wikiPage.is_deleted ? 1 : 0,
                     isLocked: wikiPage.is_locked ? 1 : 0,
-                    updatedAt: wikiPage.updated_at?.value ? new Date(wikiPage.updated_at.value).toISOString() : undefined,
-                    createdAt: wikiPage.created_at?.value ? new Date(wikiPage.created_at.value).toISOString() : undefined,
+                    updatedAt: wikiPage.updated_at?.value
+                        ? new Date(wikiPage.updated_at.value).toISOString()
+                        : undefined,
+                    createdAt: wikiPage.created_at?.value
+                        ? new Date(wikiPage.created_at.value).toISOString()
+                        : undefined,
                 })
                 .onConflict((oc) => oc.doNothing())
                 .execute();
@@ -138,7 +150,7 @@ export async function injectDanbooruTags() {
     console.timeEnd('compact db');
 }
 
-export async function *getLabelValueDefinitions() {
+export async function* getLabelValueDefinitions() {
     const tagCategoryNames: Record<TagCategory, string> = {
         [TagCategory.General]: 'general',
         [TagCategory.Artist]: 'artist',
@@ -157,7 +169,7 @@ export async function *getLabelValueDefinitions() {
         .where('isDeprecated', '=', 0)
         .where('postCount', '>=', 10000n)
         .where('category', '!=', TagCategory.Meta)
-        .where(eb => eb.or([eb('name', 'is', null), eb('name', 'not in', ignoredTags)]))
+        .where((eb) => eb.or([eb('name', 'is', null), eb('name', 'not in', ignoredTags)]))
         .leftJoin('wikiPages', 'tags.name', 'wikiPages.title')
         .orderBy('postCount', 'desc')
         .select(['tags.id', 'tags.name', 'tags.category', 'wikiPages.title', 'wikiPages.body'])
@@ -170,7 +182,9 @@ export async function *getLabelValueDefinitions() {
 
         if (identifiers.has(identifier)) {
             const otherTag = identifiers.get(identifier)!;
-            throw new Error(`Identifier conflict: ${identifier} is used by both ${tag.name} (#${tag.id}) and ${otherTag.name} (#${otherTag.id})`)
+            throw new Error(
+                `Identifier conflict: ${identifier} is used by both ${tag.name} (#${tag.id}) and ${otherTag.name} (#${otherTag.id})`,
+            );
         }
 
         yield {
@@ -181,12 +195,17 @@ export async function *getLabelValueDefinitions() {
             locales: [
                 {
                     lang: 'en',
-                    name: (tag.category != null && tag.category !== TagCategory.General ? `${tagCategoryNames[tag.category]}: ` : '') +
+                    name:
+                        (tag.category != null && tag.category !== TagCategory.General
+                            ? `${tagCategoryNames[tag.category]}: `
+                            : '') +
                         `${tag.name?.replace(/_/g, ' ') ?? tag?.title?.replace(/_/g, ' ') ?? String(tag.id)}`,
-                    description: cleanup(tag?.body ?? `Images with the ${tag.name ?? tag?.title ?? tag.id} tag on Danbooru.`)
-                        // + (wikiPage?.otherNames?.length ? `\n\nOther names: ${wikiPage.otherNames.join(', ')}` : '')
+                    description: cleanup(
+                        tag?.body ?? `Images with the ${tag.name ?? tag?.title ?? tag.id} tag on Danbooru.`,
+                    ),
+                    // + (wikiPage?.otherNames?.length ? `\n\nOther names: ${wikiPage.otherNames.join(', ')}` : '')
                 },
-            ]
+            ],
         } satisfies ComAtprotoLabelDefs.LabelValueDefinition;
     }
 }
@@ -197,11 +216,18 @@ export async function *getLabelValueDefinitions() {
  *
  * @param tag
  */
-export function getLabelIdForTag(tag: { id: number | bigint, name: string }): string;
+export function getLabelIdForTag(tag: { id: number | bigint; name: string }): string;
 export function getLabelIdForTag(tag: number | string): Promise<string | undefined>;
-export function getLabelIdForTag(tag: number | string | { id: number | bigint, name: string }): Promise<string | undefined> | string {
-    function getSanitizedTagName(tag: { id: number | bigint, name: string }) {
-        const name = `${alphabetToString(Number(tag.id))}-${tag.name?.toLowerCase()?.replace(/[^a-z-]/g, '-').replace(/-{2,}/g, '-') ?? ''}`;
+export function getLabelIdForTag(
+    tag: number | string | { id: number | bigint; name: string },
+): Promise<string | undefined> | string {
+    function getSanitizedTagName(tag: { id: number | bigint; name: string }) {
+        const name = `${alphabetToString(Number(tag.id))}-${
+            tag.name
+                ?.toLowerCase()
+                ?.replace(/[^a-z-]/g, '-')
+                .replace(/-{2,}/g, '-') ?? ''
+        }`;
 
         if (name.indexOf('-') >= 14) {
             throw new Error('Sanity check failed: tag ID is too big to fit in a feed rkey');
@@ -212,11 +238,7 @@ export function getLabelIdForTag(tag: number | string | { id: number | bigint, n
 
     if (typeof tag === 'string') {
         return (async () => {
-            const tag1 = await db
-                .selectFrom('tags')
-                .where('name', '=', tag)
-                .selectAll()
-                .executeTakeFirst();
+            const tag1 = await db.selectFrom('tags').where('name', '=', tag).selectAll().executeTakeFirst();
             if (tag1) {
                 return getSanitizedTagName(tag1);
             }
@@ -224,11 +246,7 @@ export function getLabelIdForTag(tag: number | string | { id: number | bigint, n
         })();
     } else if (typeof tag === 'number') {
         return (async () => {
-            const tag1 = await db
-                .selectFrom('tags')
-                .where('id', '=', BigInt(tag))
-                .selectAll()
-                .executeTakeFirst();
+            const tag1 = await db.selectFrom('tags').where('id', '=', BigInt(tag)).selectAll().executeTakeFirst();
 
             if (tag1) {
                 return getSanitizedTagName(tag1);
@@ -253,7 +271,7 @@ export function parseLabelIdentifier(labelIdentifier: string): [tag: number, sni
 }
 
 function indexOfAny(str: string, ...options: string[]) {
-    const idxs = options.map(e => str.indexOf(e)).filter(e => e > -1);
+    const idxs = options.map((e) => str.indexOf(e)).filter((e) => e > -1);
     return idxs.length == 0 ? -1 : Math.min(...idxs);
 }
 
@@ -265,7 +283,7 @@ function cleanup(str: string): string {
     }
 
     function stripToParagraphSeparator(str: string): string {
-        const idx = indexOfAny(str, '\r\n\r\n', '\n\n')
+        const idx = indexOfAny(str, '\r\n\r\n', '\n\n');
         if (idx == -1) return str;
         return str.slice(0, idx);
     }
@@ -281,10 +299,16 @@ function removeDtext(str: string): string {
     const urlRegex = String.raw`https?:\/\/(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_\+.~#?&//=]*)`; //https://stackoverflow.com/a/3809435
 
     return str
-        .replace(/\[\/?(?:[bius]|tn|spoilers|nodtext|code|br|url|table|thead|tbody|tr|col|colgroup|th|td|expand|quote|hr)\]/g, '') // Basic formatting
+        .replace(
+            /\[\/?(?:[bius]|tn|spoilers|nodtext|code|br|url|table|thead|tbody|tr|col|colgroup|th|td|expand|quote|hr)\]/g,
+            '',
+        ) // Basic formatting
         .replace(/\[expand=[^\]]+\]/g, '') // Use [expand=Custom title] to add a custom title:
         .replace(/\[(th|tr|td|thead|tbody|col)(\s+(align|span|colspan|rowspan)="[^"]*")*\s*\]/g, '') // optional table element attributes
-        .replace(/<\/?(?:b|strong|i|em|u|s|tn|spoiler|nodtext|code|br|hr|quote|expand|table|thead|tbody|tr|col|colgroup|th|td)>/g, '')
+        .replace(
+            /<\/?(?:b|strong|i|em|u|s|tn|spoiler|nodtext|code|br|hr|quote|expand|table|thead|tbody|tr|col|colgroup|th|td)>/g,
+            '',
+        )
         .replace(new RegExp('<(' + urlRegex + ')>', 'g'), '$1') // Basic link with delimiters
         .replace(new RegExp(String.raw`"([^"]*)":\[` + urlRegex + String.raw`\]`, 'g'), '$1') // Link with custom text
         .replace(new RegExp(String.raw`\[([^\]*])\]\(` + urlRegex + String.raw`\)`, 'g'), '$1') // Markdown style link
@@ -297,13 +321,11 @@ function removeDtext(str: string): string {
         .replace(/\{\{([^\}]+?)\}\}/g, '$1') // Link to a tag search
         .replace(/\{\{[^\|\}]+?\|(.*?)\}\}/g, '$1') // Link to a tag search with custom text
         .replace(/^h[4-6]\.\s*/gm, '') // Headings
-        .replace(/^\.\s*/gm, '') // undocumented?
-    ;
-            // TODO the rest... https://danbooru.donmai.us/posts?tags=help%3Adtext
+        .replace(/^\.\s*/gm, ''); // undocumented?
+    // TODO the rest... https://danbooru.donmai.us/posts?tags=help%3Adtext
 }
 
 function assertLabelIdValid(labelId: string): string {
     if (/[^a-z-]/.test(labelId)) throw new Error(`Invalid label ID: ${labelId}`);
     return labelId;
 }
-

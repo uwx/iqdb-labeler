@@ -42,7 +42,11 @@ function resolveCustomColoredColorizer(customColors: Array<[level: string | numb
 }
 
 function colorizeLevel(useOnlyCustomProps: boolean) {
-    return (level: string | number, colorizer: typeof plain, { customLevels, customLevelNames }: { customLevels?: object, customLevelNames?: object } = {}) => {
+    return (
+        level: string | number,
+        colorizer: typeof plain,
+        { customLevels, customLevelNames }: { customLevels?: object; customLevelNames?: object } = {},
+    ) => {
         const [levelStr, levelNum] = getLevelLabelData(useOnlyCustomProps, customLevels, customLevelNames)(level);
 
         return Object.prototype.hasOwnProperty.call(colorizer, levelNum)
@@ -53,7 +57,10 @@ function colorizeLevel(useOnlyCustomProps: boolean) {
 
 function plainColorizer(useOnlyCustomProps: boolean) {
     const newPlainColorizer = colorizeLevel(useOnlyCustomProps);
-    const customColoredColorizer = ((level: string | number, opts?: { customLevels?: object, customLevelNames?: object }) => newPlainColorizer(level, plain, opts)) as ColorizerFunc;
+    const customColoredColorizer = ((
+        level: string | number,
+        opts?: { customLevels?: object; customLevelNames?: object },
+    ) => newPlainColorizer(level, plain, opts)) as ColorizerFunc;
     customColoredColorizer.message = plain.message;
     customColoredColorizer.greyMessage = plain.greyMessage;
     customColoredColorizer.property = plain.property;
@@ -63,7 +70,10 @@ function plainColorizer(useOnlyCustomProps: boolean) {
 
 function coloredColorizer(useOnlyCustomProps: boolean) {
     const newColoredColorizer = colorizeLevel(useOnlyCustomProps);
-    const customColoredColorizer = ((level: string | number, opts?: { customLevels?: object, customLevelNames?: object }) => newColoredColorizer(level, colored, opts)) as ColorizerFunc;
+    const customColoredColorizer = ((
+        level: string | number,
+        opts?: { customLevels?: object; customLevelNames?: object },
+    ) => newColoredColorizer(level, colored, opts)) as ColorizerFunc;
     customColoredColorizer.message = colored.message;
     customColoredColorizer.property = colored.property;
     customColoredColorizer.greyMessage = colored.greyMessage;
@@ -71,12 +81,18 @@ function coloredColorizer(useOnlyCustomProps: boolean) {
     return customColoredColorizer;
 }
 
-function customColoredColorizerFactory(customColors: Array<[level: string | number, color: string]>, useOnlyCustomProps: boolean) {
+function customColoredColorizerFactory(
+    customColors: Array<[level: string | number, color: string]>,
+    useOnlyCustomProps: boolean,
+) {
     const onlyCustomColored = resolveCustomColoredColorizer(customColors);
     const customColored = useOnlyCustomProps ? onlyCustomColored : Object.assign({}, colored, onlyCustomColored);
     const colorizeLevelCustom = colorizeLevel(useOnlyCustomProps);
 
-    const customColoredColorizer = ((level: string | number, opts?: { customLevels?: object, customLevelNames?: object }) => colorizeLevelCustom(level, customColored, opts)) as ColorizerFunc;
+    const customColoredColorizer = ((
+        level: string | number,
+        opts?: { customLevels?: object; customLevelNames?: object },
+    ) => colorizeLevelCustom(level, customColored, opts)) as ColorizerFunc;
     customColoredColorizer.colors = availableColors;
     customColoredColorizer.message = customColoredColorizer.message || customColored.message;
     customColoredColorizer.greyMessage = customColoredColorizer.greyMessage || customColored.greyMessage;
@@ -90,29 +106,29 @@ function customColoredColorizerFactory(customColors: Array<[level: string | numb
  * string for the "info" level.
  */
 export interface ColorizerFunc {
-  /**
-   * @param level In either case, the input will map to a color
-   * for the specified level or to the color for `USERLVL` if the level is not
-   * recognized.
-   * @param opts Optional parameters, often including customLevels and customLevelNames
-   */
-  (level: string | number, opts?: { customLevels?: object, customLevelNames?: object }): string;
-  /**
-   * Accepts one string parameter that will be colorized to a predefined color.
-   */
-  message: (input: string) => string;
-  /**
-   * Accepts one string parameter that will be colorized to a predefined (grey) color.
-   */
-  greyMessage: (input: string) => string;
-  /**
-   * Accepts one string parameter that will be colorized to a predefined color for properties.
-   */
-  property: (input: string) => string;
-  /**
-   * Available color functions based on `useColor` (or `colorize`) context.
-   */
-  colors: Colorette;
+    /**
+     * @param level In either case, the input will map to a color
+     * for the specified level or to the color for `USERLVL` if the level is not
+     * recognized.
+     * @param opts Optional parameters, often including customLevels and customLevelNames
+     */
+    (level: string | number, opts?: { customLevels?: object; customLevelNames?: object }): string;
+    /**
+     * Accepts one string parameter that will be colorized to a predefined color.
+     */
+    message: (input: string) => string;
+    /**
+     * Accepts one string parameter that will be colorized to a predefined (grey) color.
+     */
+    greyMessage: (input: string) => string;
+    /**
+     * Accepts one string parameter that will be colorized to a predefined color for properties.
+     */
+    property: (input: string) => string;
+    /**
+     * Available color functions based on `useColor` (or `colorize`) context.
+     */
+    colors: Colorette;
 }
 
 /**
@@ -133,7 +149,11 @@ export interface ColorizerFunc {
  * colors as the integer `level` and will also default to `USERLVL` if the given
  * string is not a recognized level name.
  */
-export default function getColorizer(useColors: boolean | undefined, customColors: Array<[level: string | number, color: string]>, useOnlyCustomProps: boolean): ColorizerFunc { 
+export default function getColorizer(
+    useColors: boolean | undefined,
+    customColors: Array<[level: string | number, color: string]>,
+    useOnlyCustomProps: boolean,
+): ColorizerFunc {
     if (useColors && customColors !== undefined) {
         return customColoredColorizerFactory(customColors, useOnlyCustomProps);
     }

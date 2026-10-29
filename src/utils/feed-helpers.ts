@@ -1,5 +1,5 @@
-import { getLabelIdForTag, parseLabelIdentifier } from "../labels/index.js";
-import { alphabetParseInt, alphabetToString } from "./ints.js";
+import { getLabelIdForTag, parseLabelIdentifier } from '../labels/index.js';
+import { alphabetParseInt, alphabetToString } from './ints.js';
 
 export function getFeedRkeyFromLabelIdentifier(labelIdentifier: string) {
     return alphabetToString(parseLabelIdentifier(labelIdentifier)[0]);

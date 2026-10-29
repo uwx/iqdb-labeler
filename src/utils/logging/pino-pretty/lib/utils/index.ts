@@ -77,7 +77,7 @@ export type MessageFormatString = string;
  * the options.
  */
 export interface PrettifyMessageExtras {
-  colors: Record<string, any>; // Or a more specific type if you know the structure of 'colors'
+    colors: Record<string, any>; // Or a more specific type if you know the structure of 'colors'
 }
 
 /**

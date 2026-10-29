@@ -5,23 +5,25 @@ import * as readline from 'readline/promises';
 await plcRequestToken({
     identifier: BSKY_IDENTIFIER,
     password: BSKY_PASSWORD,
-    pds: PDS
+    pds: PDS,
 });
 
 // wait for user input
 const rl = readline.createInterface({
     input: process.stdin,
-    output: process.stdout
+    output: process.stdout,
 });
 const answer = await rl.question('Input PLC token: ');
 rl.close();
 
 console.log(`Received PLC token: ${answer}`);
 
-console.log(await plcSetupLabeler({
-    identifier: BSKY_IDENTIFIER,
-    password: BSKY_PASSWORD,
-    pds: PDS,
-    plcToken: answer.trim(),
-    endpoint: 'https://labeler.nothingeverhappen.com'
-}));
+console.log(
+    await plcSetupLabeler({
+        identifier: BSKY_IDENTIFIER,
+        password: BSKY_PASSWORD,
+        pds: PDS,
+        plcToken: answer.trim(),
+        endpoint: 'https://labeler.nothingeverhappen.com',
+    }),
+);

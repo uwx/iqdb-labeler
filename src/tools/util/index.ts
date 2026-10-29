@@ -1,38 +1,38 @@
-import { AtpSessionData, CredentialManager, Client } from "@atcute/client";
-import { KittyAgent } from "kitty-agent";
+import { AtpSessionData, CredentialManager, Client } from '@atcute/client';
+import { KittyAgent } from 'kitty-agent';
 
 export interface LoginCredentials {
-	/** The URL of the PDS where the account is located. Defaults to "https://bsky.social". */
-	pds?: string | undefined;
-	/** The account identifier; a DID or handle. */
-	identifier: string;
-	/** The account password. */
-	password: string;
-	/** The 2FA code, if 2FA is enabled. */
-	code?: string;
+    /** The URL of the PDS where the account is located. Defaults to "https://bsky.social". */
+    pds?: string | undefined;
+    /** The account identifier; a DID or handle. */
+    identifier: string;
+    /** The account password. */
+    password: string;
+    /** The 2FA code, if 2FA is enabled. */
+    code?: string;
 
-	/** The credential manager to use. */
-	credentialManager?: CredentialManager;
+    /** The credential manager to use. */
+    credentialManager?: CredentialManager;
 }
 
 let xrpc: KittyAgent | undefined;
 let credentialManager: CredentialManager | undefined;
 
-export async function loginAgent(
-	{ pds, ...credentials }: LoginCredentials,
-): Promise<{ agent: KittyAgent; session: AtpSessionData }> {
-	credentialManager ??= credentials.credentialManager ?? new CredentialManager({ service: pds || "https://bsky.social" });
-	xrpc ??= new KittyAgent({ handler: credentialManager });
+export async function loginAgent({
+    pds,
+    ...credentials
+}: LoginCredentials): Promise<{ agent: KittyAgent; session: AtpSessionData }> {
+    credentialManager ??=
+        credentials.credentialManager ?? new CredentialManager({ service: pds || 'https://bsky.social' });
+    xrpc ??= new KittyAgent({ handler: credentialManager });
 
-	if (
-		credentialManager.session && credentialsMatchSession(credentials, credentialManager.session)
-	) {
-		return { agent: xrpc, session: credentialManager.session };
-	}
-	const session = await credentialManager.login(credentials);
-	return { agent: xrpc, session };
+    if (credentialManager.session && credentialsMatchSession(credentials, credentialManager.session)) {
+        return { agent: xrpc, session: credentialManager.session };
+    }
+    const session = await credentialManager.login(credentials);
+    return { agent: xrpc, session };
 }
 
 const credentialsMatchSession = (credentials: LoginCredentials, session: AtpSessionData) =>
-	(!!credentials.pds ? credentials.pds === session.pdsUri : true)
-	&& [session.did, session.handle, session.email].includes(credentials.identifier);
+    (!!credentials.pds ? credentials.pds === session.pdsUri : true) &&
+    [session.did, session.handle, session.email].includes(credentials.identifier);

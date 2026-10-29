@@ -1,4 +1,4 @@
-import type pino from "pino";
+import type pino from 'pino';
 import { WebSocketServer, type WebSocket } from 'ws';
 
 export default function wsStream(): pino.DestinationStream & { terminate: () => void } {
@@ -14,7 +14,7 @@ export default function wsStream(): pino.DestinationStream & { terminate: () => 
             clients.delete(ws);
         });
     });
-    
+
     return {
         write(msg) {
             for (const client of clients) {
@@ -24,5 +24,5 @@ export default function wsStream(): pino.DestinationStream & { terminate: () => 
         terminate() {
             wss.close();
         },
-    }
+    };
 }
