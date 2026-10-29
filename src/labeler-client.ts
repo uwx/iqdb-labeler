@@ -184,7 +184,7 @@ let stopped = false;
 // The jetstream iterator queues events without bound, so a slow serial consumer
 // (each post costs an image fetch + inference) lets the queue grow until the
 // heap dies. Process with bounded concurrency so the iterator stays drained.
-const concurrency = Math.max(1, Number(process.env.LABELER_CONCURRENCY) || 16);
+const concurrency = Math.max(1, Number(process.env.LABELER_CONCURRENCY) || 6);
 const inFlight = new Set<Promise<void>>();
 
 const handleEvent = async (event: JetstreamEvent): Promise<void> => {
