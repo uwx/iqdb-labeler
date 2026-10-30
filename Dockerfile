@@ -48,7 +48,7 @@ RUN if [ "$ORT_CUDA" = "1" ]; then \
             -o /tmp/cuda-keyring.deb; \
         dpkg -i /tmp/cuda-keyring.deb && rm /tmp/cuda-keyring.deb; \
         apt-get update && apt-get install -y --no-install-recommends \
-            libcudnn9-cuda-12 libcublas-12-8; \
+            libcudnn9-cuda-12 libcublas-12-8 libcurand-12-8 libcufft-12-8 libcusparse-12-8; \
         rm -rf /var/lib/apt/lists/*; \
     fi
 
