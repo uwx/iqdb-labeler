@@ -38,14 +38,22 @@ function createSqliteExecutor(db: DatabaseSync): IGenericSqlite<DatabaseSync> {
 export const createDb = (location: string): Database => {
     return new Kysely<DatabaseSchema>({
         dialect: new GenericSqliteDialect(() => {
-            // the server and the ingestion client share this file; WAL plus a
-            // busy timeout keeps them from failing each other's writes
+            // synchronous node:sqlite: a busy_timeout here makes contention spin
+            // rather than block, so keep it 0 and let callers retry. journal_mode
+            // is set once at startup (setJournalMode), not per connection: the
+            // pragma takes an exclusive lock and that is what was spinning.
             const db = new DatabaseSync(location);
-            db.exec('PRAGMA journal_mode = WAL');
-            db.exec('PRAGMA busy_timeout = 10000');
+            db.exec('PRAGMA busy_timeout = 0');
             return createSqliteExecutor(db);
         }),
     });
+};
+
+// call once at startup, before any connection is opened concurrently
+export const setJournalMode = (location: string) => {
+    const db = new DatabaseSync(location);
+    db.exec('PRAGMA journal_mode = WAL');
+    db.close();
 };
 
 export const migrateToLatest = async (db: Database) => {

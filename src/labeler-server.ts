@@ -21,10 +21,11 @@ import { FutureCursorError, Labeler } from '@atcute/labeler';
 import { DbLabelStore } from './utils/db-label-store.ts';
 import { reserveLabelBudget } from './utils/label-budget.ts';
 import { fromString as ui8FromString } from 'uint8arrays/from-string';
-import { createDb, migrateToLatest } from './backend/kysely/index.ts';
+import { createDb, migrateToLatest, setJournalMode } from './backend/kysely/index.ts';
 import * as http from 'node:http';
 import type { ResourceUri } from '@atcute/lexicons';
 
+setJournalMode(DB_PATH);
 await migrateToLatest(createDb(DB_PATH));
 
 const labelerDb = new SqliteDbProvider(DB_PATH);
