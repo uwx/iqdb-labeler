@@ -59,7 +59,10 @@ router.addSubscription(ComAtprotoLabelSubscribeLabels, {
         // dropped. new subscribers start from live.
         try {
             for await (const label of labeler.subscribeLabels({ signal })) {
-                logger.debug(label, 'Emitting label event');
+                // not logger.debug(label, ...): this fires for every label and the
+                // pretty-printed dump was ~1.9k lines/min of synchronous writes,
+                // which starved the event loop and made getFeedSkeleton time out
+
 
                 yield {
                     ...label,

@@ -24,7 +24,8 @@ let id = 0;
 
 const logger = pino(
     {
-        level: 'trace',
+        // honour LOG_LEVEL; 'trace' constant meant every hot-path debug call wrote
+        level: process.env.LOG_LEVEL ?? 'info',
         timestamp: pino.stdTimeFunctions.isoTime,
         mixin(mergeObject, level, logger) {
             const callSite = getCallSites({ sourceMap: true }).filter(
