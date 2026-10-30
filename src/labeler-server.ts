@@ -4,7 +4,7 @@ import logger from './backend/logger.js';
 import feedGenerator, { useDidWeb } from './services/feed-generator.js';
 import { aesDecrypt } from './backend/crypto.js';
 import { createRequestListener } from '@remix-run/node-fetch-server';
-import { json, XRPCRouter, XRPCSubscriptionError } from '@atcute/xrpc-server';
+import { AuthRequiredError, json, XRPCRouter, XRPCSubscriptionError } from '@atcute/xrpc-server';
 import { createNodeWebSocket } from '@atcute/xrpc-server-node';
 import { encode } from '@atcute/cbor';
 import { Hono } from 'hono';
@@ -48,6 +48,10 @@ const router = new XRPCRouter({
     middlewares: [cors()],
     // the default handler swallows the exception without logging it
     handleException(err, request) {
+        // auth failures are the caller's problem, not ours; keep them 401 and quiet
+        if (err instanceof AuthRequiredError) {
+            return Response.json({ error: 'AuthenticationRequired', message: err.message }, { status: 401 });
+        }
         logger.error({ err }, `Unhandled error for ${new URL(request.url).pathname}`);
         return Response.json({ error: 'InternalServerError', message: 'an exception happened whilst processing this request' }, { status: 500 });
     },
