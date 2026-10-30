@@ -21,22 +21,25 @@ export class SqliteDbProvider implements SkywareDbProvider {
         // cursor is the id of the last post emitted, so we page backwards from it.
         const cursorId = cursor > 0 ? BigInt(cursor) : BigInt(Number.MAX_SAFE_INTEGER);
 
-        // distinctOn is postgres-only; sqlite needs the window function form
-        const result = await sql<SavedLabel>`
-            SELECT * FROM (
-                SELECT *, ROW_NUMBER() OVER (PARTITION BY uri ORDER BY id DESC) AS rn
-                FROM labels
-                WHERE val = ${identifier} AND id < ${Number(cursorId)}
-            )
-            WHERE rn = 1
+        // stream the (val, id) index newest-first and keep the first row per uri.
+        // GROUP BY / ROW_NUMBER() sort every matching row (7s for a 72k-row value);
+        // this stops as soon as it has `limit` distinct posts.
+        const stream = sql<SavedLabel>`
+            SELECT * FROM labels
+            WHERE val = ${identifier} AND id < ${Number(cursorId)}
             ORDER BY id DESC
-            LIMIT ${limit}
-        `.execute(this.db).then((r) => r.rows);
+        `.stream(this.db);
 
-        return result.map((row) => ({
-            ...row,
-            neg: row.neg == 1n,
-        }));
+        const seen = new Set<string>();
+        const result: SavedLabel[] = [];
+        for await (const row of stream) {
+            if (seen.has(row.uri)) continue;
+            seen.add(row.uri);
+            result.push({ ...row, neg: row.neg == 1n });
+            if (result.length >= limit) break;
+        }
+
+        return result;
     }
 
     async saveLabel(label: SignedLabel): Promise<bigint> {
