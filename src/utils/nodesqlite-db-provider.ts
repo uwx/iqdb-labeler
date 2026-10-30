@@ -1,7 +1,6 @@
 import { Bytes, Did } from '@atcute/lexicons';
 import type { SavedLabel, SignedLabel, DbProvider as SkywareDbProvider } from './db-provider.js';
 import { createDb, Database } from '../backend/kysely/index.js';
-import { sql } from 'kysely';
 
 function toArray(buf: Uint8Array | Bytes): Uint8Array {
     if (buf instanceof Uint8Array) return buf;
@@ -24,11 +23,13 @@ export class SqliteDbProvider implements SkywareDbProvider {
         // stream the (val, id) index newest-first and keep the first row per uri.
         // GROUP BY / ROW_NUMBER() sort every matching row (7s for a 72k-row value);
         // this stops as soon as it has `limit` distinct posts.
-        const stream = sql<SavedLabel>`
-            SELECT * FROM labels
-            WHERE val = ${identifier} AND id < ${Number(cursorId)}
-            ORDER BY id DESC
-        `.stream(this.db);
+        const stream = this.db
+            .selectFrom('labels')
+            .selectAll()
+            .where('val', '=', identifier)
+            .where('id', '<', cursorId)
+            .orderBy('id', 'desc')
+            .stream();
 
         const seen = new Set<string>();
         const result: SavedLabel[] = [];
