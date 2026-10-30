@@ -52,6 +52,8 @@ async function modelLoad(modelDir = './models') {
 
     // LABELER_CONCURRENCY inference sessions run at once; ONNX defaults to using
     // every core in each, which starves the co-located labeler server.
+    // shortcut: cpu only; the prebuilt onnxruntime-node ships no cuda provider
+    // library, so listing 'cuda' here throws. needs the CUDA build of ORT.
     const threads = Math.max(1, Math.floor((os.availableParallelism() || 4) / 2));
 
     return await onnx.InferenceSession.create(onnxPath, {
@@ -59,7 +61,6 @@ async function modelLoad(modelDir = './models') {
         graphOptimizationLevel: 'all',
         intraOpNumThreads: threads,
         interOpNumThreads: 1,
-        executionProviders: ['cuda', 'cpu'],
     });
 }
 
