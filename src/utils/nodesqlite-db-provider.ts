@@ -88,24 +88,36 @@ export class SqliteDbProvider implements SkywareDbProvider {
     }
 
     async searchLabels(cursor?: number, limit = 50, uriPatterns: string[] = [], sources: string[] = []) {
-        const patterns = uriPatterns.includes('*')
-            ? []
-            : uriPatterns.map((pattern) => {
-                  pattern = pattern.replaceAll(/%/g, '').replaceAll(/_/g, '\\_');
+        // exact patterns use '=' so the uri index is seekable: SQLite's LIKE is
+        // case-insensitive by default, so it can never use a binary index and
+        // falls back to scanning the whole table (~1s on 5M rows)
+        const exact: string[] = [];
+        const prefixes: string[] = [];
+        if (!uriPatterns.includes('*')) {
+            for (let pattern of uriPatterns) {
+                pattern = pattern.replaceAll(/%/g, '').replaceAll(/_/g, '\\_');
 
-                  const starIndex = pattern.indexOf('*');
-                  if (starIndex === -1) return pattern;
-
-                  if (starIndex !== pattern.length - 1) {
-                      throw new Error('Only trailing wildcards are supported in uriPatterns');
-                  }
-                  return pattern.slice(0, -1) + '%';
-              });
+                const starIndex = pattern.indexOf('*');
+                if (starIndex === -1) {
+                    exact.push(pattern);
+                    continue;
+                }
+                if (starIndex !== pattern.length - 1) {
+                    throw new Error('Only trailing wildcards are supported in uriPatterns');
+                }
+                prefixes.push(pattern.slice(0, -1) + '%');
+            }
+        }
 
         let query = this.db.selectFrom('labels').selectAll();
 
-        if (patterns.length) {
-            query = query.where((eb) => eb.or(patterns.map((pattern) => eb('uri', 'like', pattern))));
+        if (exact.length || prefixes.length) {
+            query = query.where((eb) =>
+                eb.or([
+                    ...exact.map((pattern) => eb('uri', '=', pattern)),
+                    ...prefixes.map((pattern) => eb('uri', 'like', pattern)),
+                ]),
+            );
         }
 
         if (sources.length) {
