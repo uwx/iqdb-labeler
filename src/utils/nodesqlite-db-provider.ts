@@ -43,6 +43,109 @@ export class SqliteDbProvider implements SkywareDbProvider {
         return result;
     }
 
+    /**
+     * Posts matching `include` (all), `exclude` (none) and `prefix` (at least one of
+     * each group's vals). Streams the rarest included val's index newest-first and
+     * checks candidates with point lookups: GROUP BY/HAVING on this table costs
+     * 0.7-1.3s, a lookup by (uri, val) is ~2us.
+     * @returns post uris, plus whether the scan cap was hit before filling the page
+     */
+    async searchLabelsByTags(
+        query: { include: string[]; exclude: string[]; prefix: string[][] },
+        offset: number,
+        limit: number,
+        maxScan = 2000,
+    ): Promise<{ posts: string[]; truncated: boolean }> {
+        // each group is a prefix expansion; the uri must match at least one val in each
+        const hasAnyOfEach = async (uri: string, groups: string[][]): Promise<boolean> => {
+            for (const group of groups) {
+                if (group.length === 0) continue;
+                const found = await this.db
+                    .selectFrom('labels')
+                    .select('val')
+                    .where('uri', '=', uri)
+                    .where('val', 'in', group)
+                    .executeTakeFirst();
+                if (found === undefined) return false;
+            }
+            return true;
+        };
+
+        // true when the uri carries every val in the list (an empty list is true)
+        const hasAll = async (uri: string, vals: string[]): Promise<boolean> => {
+            if (vals.length === 0) return true;
+            const found = await this.db
+                .selectFrom('labels')
+                .select('val')
+                .where('uri', '=', uri)
+                .where('val', 'in', vals)
+                .execute();
+            return new Set(found.map((row) => row.val)).size === new Set(vals).size;
+        };
+
+        // drive off the first include val, else every val of the first prefix group
+        // (a group is an OR, so one val would miss posts carrying only the others).
+        // With only negative terms there is no useful index to start from.
+        const rest = query.include.slice(1);
+        const isIncludeDriver = query.include.length > 0;
+        const drivers = isIncludeDriver ? [query.include[0]] : (query.prefix[0] ?? []);
+        if (drivers.length === 0) return { posts: [], truncated: false };
+        // when the prefix group *is* the driver its constraint is already satisfied
+        const otherPrefixGroups = isIncludeDriver ? query.prefix : query.prefix.slice(1);
+        const posts: string[] = [];
+        let matched = 0;
+
+        // collect candidates first: the executor is single-connection, so issuing a
+        // query while a stream is open deadlocks. id is kept to restore newest-first
+        // order across the per-val streams.
+        const ids = new Map<string, bigint>();
+        let exhausted = false;
+        outer: for (const val of drivers) {
+            const stream = this.db
+                .selectFrom('labels')
+                .select(['uri', 'id'])
+                .where('val', '=', val)
+                .orderBy('id', 'desc')
+                .stream();
+
+            for await (const row of stream) {
+                const previous = ids.get(row.uri);
+                if (previous !== undefined) {
+                    if (row.id > previous) ids.set(row.uri, row.id);
+                    continue;
+                }
+                // cap on distinct posts considered, not rows: a common tag repeats.
+                // offset shifts the window so deep pages are still reachable.
+                if (ids.size >= maxScan + offset) {
+                    exhausted = true;
+                    break outer;
+                }
+                ids.set(row.uri, row.id);
+            }
+        }
+
+        const candidates = [...ids.entries()]
+            .sort((a, b) => (a[1] > b[1] ? -1 : a[1] < b[1] ? 1 : 0))
+            .map(([uri]) => uri);
+
+        for (const uri of candidates) {
+            if (!(await hasAll(uri, rest))) continue;
+            // excludes are per-tag: carrying any one of them rejects the post
+            if (query.exclude.length > 0 && (await hasAnyOfEach(uri, [query.exclude]))) continue;
+            // each prefix group needs at least one of its vals
+            if (!(await hasAnyOfEach(uri, otherPrefixGroups))) continue;
+
+            // skip the first `offset` matches, then collect the page
+            if (matched++ < offset) continue;
+            posts.push(uri);
+            if (posts.length >= limit) break;
+        }
+
+        // a short page after the cap is not authoritative: there may be more matches
+        // the scan never reached. A full page is, so it is never flagged.
+        return { posts, truncated: exhausted && posts.length < limit };
+    }
+
     async saveLabel(label: SignedLabel): Promise<bigint> {
         const { src, uri, cid, val, neg, cts, exp, sig } = label;
 

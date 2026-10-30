@@ -1,4 +1,5 @@
 import metricsServer from './services/metrics.js';
+import searchServer from './services/search.js';
 import { DB_PATH, DID, PORT, SIGNING_KEY } from './config.js';
 import logger from './backend/logger.js';
 import feedGenerator, { useDidWeb } from './services/feed-generator.js';
@@ -118,6 +119,7 @@ router.addQuery(ComAtprotoLabelQueryLabels, {
 const labelerServer = new Hono();
 
 metricsServer(labelerServer);
+searchServer(labelerServer, labelerDb);
 
 feedGenerator(router, labelerDb); // TODO
 useDidWeb(labelerServer);

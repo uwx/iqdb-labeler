@@ -18,6 +18,8 @@ export const LABELER_PASSWORD = process.env.LABELER_PASSWORD ?? 'hackme';
 export const LABELER_SALT = process.env.LABELER_SALT ?? 'hackme';
 export const DB_PATH = process.env.DB_PATH ?? 'labels.db';
 export const PDS = process.env.PDS ?? 'https://bsky.social';
+export const SEARCH_SCAN_CAP = process.env.SEARCH_SCAN_CAP ? Number(process.env.SEARCH_SCAN_CAP) : 2000;
+export const SEARCH_MAX_TAGS = process.env.SEARCH_MAX_TAGS ? Number(process.env.SEARCH_MAX_TAGS) : 10;
 
 if (!FEEDS_DOMAIN || !BSKY_IDENTIFIER || !BSKY_PASSWORD || !DID || !SIGNING_KEY) {
     throw new Error('Environment is misconfigured. Please modify .env');
