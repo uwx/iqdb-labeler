@@ -1,6 +1,7 @@
 // Copied wholesale from https://github.com/jtydhr88/eagle-ai-tagger/blob/master/index.html
 
 import path from 'node:path';
+import os from 'node:os';
 
 import * as onnx from 'onnxruntime-node';
 import selectedTags from './selected_tags.csv?raw';
@@ -49,9 +50,16 @@ async function preprocessImage(imagePath: string | Buffer) {
 async function modelLoad(modelDir = './models') {
     const onnxPath = path.join(modelDir, 'model.onnx');
 
+    // LABELER_CONCURRENCY inference sessions run at once; ONNX defaults to using
+    // every core in each, which starves the co-located labeler server.
+    const threads = Math.max(1, Math.floor((os.availableParallelism() || 4) / 2));
+
     return await onnx.InferenceSession.create(onnxPath, {
         executionMode: 'parallel',
         graphOptimizationLevel: 'all',
+        intraOpNumThreads: threads,
+        interOpNumThreads: 1,
+        executionProviders: ['cuda', 'cpu'],
     });
 }
 
