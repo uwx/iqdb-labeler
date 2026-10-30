@@ -44,6 +44,9 @@ export const createDb = (location: string): Database => {
             // pragma takes an exclusive lock and that is what was spinning.
             const db = new DatabaseSync(location);
             db.exec('PRAGMA busy_timeout = 0');
+            // AT URIs are case-sensitive, and this is what lets LIKE use an index;
+            // the default case-insensitive LIKE scans the whole table
+            db.exec('PRAGMA case_sensitive_like = ON');
             return createSqliteExecutor(db);
         }),
     });
